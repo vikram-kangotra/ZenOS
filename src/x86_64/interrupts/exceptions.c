@@ -1,19 +1,27 @@
 #include "interrupts/exceptions.h"
 #include "print.h"
 #include "kernel/serial.h"
+#include <stdarg.h>
 
-void print_interrupt_frame(struct InterruptStackFrame *frame) {
-    kprintf("Interrupt frame at %x \n", (unsigned long)frame);
-    kprintf("Instruction pointer: %x \n", frame->instruction_pointer);
-    kprintf("Code segment: %x \n", frame->code_segment);
-    kprintf("CPU flags: %x \n", frame->cpu_flags);
-    kprintf("Stack pointer: %x \n", frame->stack_pointer);
-    kprintf("Stack segment: %x", frame->stack_segment);
+void error(const char* err, ...) {
+    va_list args;
+
+    va_start(args, err);
+    va_kprintf(err, args);
+    va_end(args);
+
+    va_start(args, err);
+    va_write_serial(err, args);
+    va_end(args);
 }
 
-void error(const char* err) {
-    kprintf(err);
-    write_serial_string(err);
+void print_interrupt_frame(struct InterruptStackFrame *frame) {
+    error("Interrupt frame at %x \n", (unsigned long)frame);
+    error("Instruction pointer: %x \n", frame->instruction_pointer);
+    error("Code segment: %x \n", frame->code_segment);
+    error("CPU flags: %x \n", frame->cpu_flags);
+    error("Stack pointer: %x \n", frame->stack_pointer);
+    error("Stack segment: %x", frame->stack_segment);
 }
 
 void divide_by_zero_handler(struct InterruptStackFrame *frame) {
@@ -53,8 +61,7 @@ void page_fault_handler(struct InterruptStackFrame *frame) {
     unsigned long cr2;
     asm volatile("mov %%cr2, %0" : "=r"(cr2));
 
-    write_serial_string("Page fault at address ");
-    write_serial_hex(cr2);
+    write_serial("Page fault at address: %x", cr2);
 
     while (1);
 }

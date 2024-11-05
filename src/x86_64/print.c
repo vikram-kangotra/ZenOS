@@ -131,9 +131,16 @@ void print_int(long num) {
     }
 }
 
-void kprintf (const char* format, ...) {
+void kprintf(const char* format, ...) {
     va_list args;
     va_start(args, format);
+
+    va_kprintf(format, args);
+
+    va_end(args);
+}
+
+void va_kprintf (const char* format, va_list args) {
 
     for (size_t i = 0; format[i] != '\0'; i++) {
         if (format[i] == '%' && format[i+1] != '\0') {
@@ -162,5 +169,4 @@ void kprintf (const char* format, ...) {
             print_char(format[i]);
         }
     }
-    va_end(args);
 }

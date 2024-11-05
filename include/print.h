@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdarg.h>
 
 enum {
     PRINT_COLOR_BLACK = 0,
@@ -25,3 +26,4 @@ enum {
 void print_clear();
 void print_set_color(uint8_t foreground, uint8_t background);
 void kprintf(const char* format, ...);
+void va_kprintf(const char* format, va_list args);

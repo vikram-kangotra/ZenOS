@@ -1,4 +1,6 @@
 #include <stdbool.h>
+#include <stdarg.h>
+#include <stddef.h>
 
 #include "kernel/io.h"
 #include "kernel/serial.h"
@@ -50,6 +52,43 @@ void write_serial_hex(unsigned long num) {
         if (nibble != 0 || !leading_zero) {
             write_serial_char(to_hex(nibble));
             leading_zero = false;
+        }
+    }
+}
+
+void write_serial(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+
+    va_write_serial(format, args);
+
+    va_end(args);
+}
+
+void va_write_serial(const char* format, va_list args) {
+
+    for (size_t i = 0; format[i] != '\0'; i++) {
+        if (format[i] == '%' && format[i+1] != '\0') {
+            i++;
+            switch (format[i]) {
+                case 'x':
+                    write_serial_hex(va_arg(args, unsigned int));
+                    break;
+                case 's':
+                    write_serial_string(va_arg(args, const char*));
+                    break;
+                case 'c':
+                    write_serial_char((char)va_arg(args, int));
+                    break;
+                case '%':
+                    write_serial_char('%');
+                    break;
+                default:
+                    write_serial_char('%');
+                    write_serial_char(format[i]);
+            }
+        } else {
+            write_serial_char(format[i]);
         }
     }
 }
