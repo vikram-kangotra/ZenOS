@@ -1,12 +1,17 @@
 #include "interrupts/idt.h"
 #include "interrupts/isr.h"
 #include "interrupts/exceptions.h"
+#include "interrupts/pic.h"
+#include "kernel/io.h"
+#include "print.h"
 
 #define IDT_ENTRIES 256
 struct idt_entry idt[IDT_ENTRIES];
 struct idt_ptr idtp;
 
 extern void load_idt(uint64_t);
+
+extern void keyboard_handler();
 
 void idt_set_entry(int n, uint64_t handler) {
     idt[n].offset_low = handler & 0xFFFF;
@@ -33,5 +38,12 @@ void idt_init() {
     idt_set_entry(13, (uint64_t)general_protection_fault_handler);
     idt_set_entry(14, (uint64_t)page_fault_handler);
 
+    idt_set_entry(33, (uint64_t)keyboard_handler);
+
     load_idt((uint64_t)&idtp);
+
+    pic_remap();
+
+    enable_irq();
 }
+
