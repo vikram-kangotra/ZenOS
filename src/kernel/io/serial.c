@@ -56,15 +56,6 @@ void write_serial_hex(unsigned long num) {
     }
 }
 
-void write_serial(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-
-    va_write_serial(format, args);
-
-    va_end(args);
-}
-
 void va_write_serial(const char* format, va_list args) {
 
     for (size_t i = 0; format[i] != '\0'; i++) {
