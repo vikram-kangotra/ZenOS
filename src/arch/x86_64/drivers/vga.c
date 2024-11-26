@@ -35,6 +35,7 @@ void vga_clear_screen() {
     for (size_t i = 0; i < NUM_ROWS; ++i) {
         clear_row(i);
     }
+    vga_set_cursor(0, 0);
 }
 
 void vga_set_color(uint8_t foreground, uint8_t background) {
@@ -57,6 +58,8 @@ void print_newline() {
     }
 
     clear_row(NUM_COLS - 1);
+
+    vga_set_cursor(col, row);
 }
 
 void vga_write_char(char character) {
@@ -76,13 +79,27 @@ void vga_write_char(char character) {
     
 
     col++;
+
+    vga_set_cursor(col, row);
 }
 
 void vga_set_cursor(int x, int y) {
     uint16_t position = y * NUM_COLS + x;
     out(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
-    out(FB_DATA_PORT, (position >> 8) & 0xFF); // High byte
+    out(FB_DATA_PORT, (position >> 8) & 0xFF);
     out(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
-    out(FB_DATA_PORT, position & 0xFF);        // Low byte
+    out(FB_DATA_PORT, position & 0xFF);
 }
 
+void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end) {
+    out(FB_COMMAND_PORT, 0x0A);
+    out(FB_DATA_PORT, cursor_start & 0x1F);
+
+    out(FB_COMMAND_PORT, 0x0B);
+    out(FB_DATA_PORT, cursor_end & 0x1F);
+}
+
+void vga_disable_cursor() {
+    out(FB_COMMAND_PORT, 0x0A);
+    out(FB_DATA_PORT, 0x20);
+}
