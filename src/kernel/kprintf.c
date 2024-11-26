@@ -1,7 +1,9 @@
 #include "drivers/vga.h"
+#include "drivers/serial.h"
 
 void kputchar(char ch) {
     vga_write_char(ch);
+    serial_write_char(ch);
 }
 
 void kprintf(const char* format, ...) {

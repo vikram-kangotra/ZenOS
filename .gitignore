@@ -2,3 +2,5 @@ build
 dist
 bochslog.txt
 targets/x86_64/iso/boot/kernel.elf
+com1.out
+kernel.log
