@@ -10,3 +10,6 @@ inline void out(uint16_t portnum, uint8_t data) {
     asm volatile("outb %0, %w1" : : "a"(data), "Nd"(portnum));
 }
 
+inline void io_wait() {
+    out(0x80, 0x00);
+}
