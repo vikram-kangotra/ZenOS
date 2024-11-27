@@ -17,9 +17,9 @@ CC := gcc
 LD := ld
 GRUB_MKRESCUE := grub-mkrescue
 
-ASMFLAGS := -f elf32 -I $(ASM_DIR)
-CFLAGS := -O3 -Iinclude -m32 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs -Wall -Wextra -Werror
-LDFLAGS := -T targets/x86_64/linker.ld -melf_i386
+ASMFLAGS := -f elf64 -I $(ASM_DIR)
+CFLAGS := -O3 -Iinclude -m64 -nostdlib -nostdinc -fno-builtin -fno-stack-protector -nostartfiles -nodefaultlibs -Wall -Wextra -Werror
+LDFLAGS := -T targets/x86_64/linker.ld -melf_x86_64
 
 ASM_SRC := $(shell find $(ASM_DIR) $(COMMON_ARCH_DIR) -name '*.asm')
 C_SRC := $(shell find $(C_DIR) $(KERNEL_C_DIR) $(COMMON_ARCH_DIR) -name '*.c')
