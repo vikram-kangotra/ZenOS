@@ -4,15 +4,27 @@ extern kmain
 
 bits 64
 long_mode_start:
-    mov rax, gdt64.Data
+    mov ax, gdt64.Data
     mov ds, rax
     mov es, rax
     mov fs, rax
     mov gs, rax
+    mov ss, ax
 
     call kmain
 
     hlt
+
+extern lgdt
+lgdt:
+    lgdt [gdt64.Pointer]
+    ret
+
+extern ltr
+ltr:
+    mov di, gdt64.Tss
+    ltr di
+    ret
 
 section .text
 bits 32
@@ -79,6 +91,16 @@ page_table_l3:
 page_table_l2:
     resb 4096
 
+section .bss
+extern tss_segment
+tss_segment:
+    resd 1 ; reserved 
+    resq 3 ; resp
+    resq 2 ; reserved
+    resq 7 ; ist
+    resq 2 ; reserved
+    resw 1 ; I/O map base address
+
 PRESENT        equ 1 << 7
 NOT_SYS        equ 1 << 4
 EXEC           equ 1 << 3
@@ -93,6 +115,7 @@ LONG_MODE     equ 1 << 5
 
 section .rodata
 align 8
+extern gdt64
 gdt64:
     .Null: equ $ - gdt64
         dq 0
@@ -108,6 +131,9 @@ gdt64:
         db PRESENT | NOT_SYS | RW                   ; Access
         db GRAN_4K | SZ_32 | 0xF                    ; Flags & Limit (high, bits 16-19)
         db 0                                        ; Base (high, bits 24-31)
+    .Tss: equ $ - gdt64
+        dq 0
+        dq 0
     .Pointer:
         dw $ - gdt64 - 1
         dq gdt64

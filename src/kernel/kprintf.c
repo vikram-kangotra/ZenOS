@@ -1,7 +1,9 @@
 #include "drivers/vga.h"
+#include "drivers/serial.h"
 
 void kputchar(char ch) {
     vga_write_char(ch);
+    serial_write_char(ch);
 }
 
 #define GET_ARG(type, reg_index, stack_pointer)                \
