@@ -1,3 +1,10 @@
 #pragma once
 
-void kprintf(const char* format, ...);
+enum LogLevel {
+    INFO,
+    DEBUG,
+    WARN,
+    ERROR,
+};
+
+void kprintf(enum LogLevel, const char* format, ...);

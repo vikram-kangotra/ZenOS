@@ -1,5 +1,6 @@
 #include "drivers/vga.h"
 #include "drivers/serial.h"
+#include "kernel/kprintf.h"
 
 void kputchar(char ch) {
     vga_write_char(ch);
@@ -10,7 +11,15 @@ void kputchar(char ch) {
     ((reg_index < 5) ? ((type)(reg_args[reg_index++])) :       \
                        ((type)(*stack_pointer++)))
 
-void kprintf(const char* format, ...) {
+void kprintf(enum LogLevel level, const char* format, ...) {
+
+    switch (level) {
+        case INFO: vga_set_color(PRINT_COLOR_LIGHT_GREEN, PRINT_COLOR_BLACK); break;
+        case DEBUG: vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK); break;
+        case WARN: vga_set_color(PRINT_COLOR_YELLOW, PRINT_COLOR_BLACK); break;
+        case ERROR: vga_set_color(PRINT_COLOR_LIGHT_RED, PRINT_COLOR_BLACK); break;
+    }
+
     uintptr_t reg_args[5];
     asm volatile (
         "mov %%rsi, %0\n\t"

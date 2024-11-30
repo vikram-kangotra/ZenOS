@@ -14,5 +14,5 @@ void kmain() {
 
     init_gdt_with_tss();
 
-    kprintf("Welcome to ZenOS\n");
+    kprintf(INFO, "Welcome to ZenOS\n");
 }

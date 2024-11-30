@@ -84,7 +84,12 @@ void vga_write_char(char character) {
 }
 
 void vga_set_cursor(int x, int y) {
+
+    row = y;
+    col = x;
+
     uint16_t position = y * NUM_COLS + x;
+
     out(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
     out(FB_DATA_PORT, (position >> 8) & 0xFF);
     out(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);

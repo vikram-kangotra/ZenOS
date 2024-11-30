@@ -11,7 +11,7 @@ uint8_t ist1_stack[IST1_STACK_SIZE];
 
 void init_gdt_with_tss() {
 
-    kprintf("Initialize GDT........................................");
+    kprintf(DEBUG, "Initialize GDT........................................");
 
     struct GDT_Entry16* tss = (struct GDT_Entry16*) &gdt64[3];
 
@@ -30,7 +30,7 @@ void init_gdt_with_tss() {
     lgdt();
     ltr();
 
-    kprintf("[Success]\n");
+    kprintf(INFO, "[Success]\n");
 }
 
 void set_gdt_entry8(struct GDT_Entry8* entry, uint32_t base_address, uint16_t size, uint8_t flags, uint8_t access) {
