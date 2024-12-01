@@ -20,14 +20,14 @@ void kprintf(enum LogLevel level, const char* format, ...) {
         case ERROR: vga_set_color(PRINT_COLOR_LIGHT_RED, PRINT_COLOR_BLACK); break;
     }
 
-    uintptr_t reg_args[5];
+    uintptr_t reg_args[4];
     asm volatile (
         "mov %%rdx, %0\n\t"
         "mov %%rcx, %1\n\t"
         "mov %%r8,  %2\n\t"
         "mov %%r9,  %3\n\t"
-        : "=m"(reg_args[0]), "=m"(reg_args[1]), "=m"(reg_args[2]),
-          "=m"(reg_args[3]), "=m"(reg_args[4])
+        : "=m"(reg_args[0]), "=m"(reg_args[1]), 
+          "=m"(reg_args[2]), "=m"(reg_args[3])
     );
 
     uintptr_t* stack_args = (uintptr_t*)__builtin_frame_address(0) + 2;
