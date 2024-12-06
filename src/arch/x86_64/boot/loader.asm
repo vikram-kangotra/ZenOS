@@ -11,6 +11,8 @@ long_mode_start:
     mov gs, rax
     mov ss, ax
 
+    mov rdi, rbx
+
     call kmain
 
 .halt:
@@ -41,6 +43,27 @@ cli:
 extern sti
 sti:
     sti
+    ret
+
+extern load_cr3
+load_cr3:
+    mov cr3, rdi
+    ret
+
+extern enable_paging
+enable_paging:
+    mov rax, cr4
+    or rax, 1 << 5  ; Enable PAE
+    mov cr4, rax
+
+    mov rcx, 0xC0000080 ; EFER MSR
+    rdmsr
+    or rax, 1 << 8  ; Enable Long Mode
+    wrmsr
+
+    mov rax, cr0
+    or rax, 1 << 31 ; Enable Paging
+    mov cr0, rax
     ret
 
 section .text

@@ -59,7 +59,6 @@ define_exception(isr_invalid_tss)
 define_exception(isr_segment_not_present)
 define_exception(isr_stack_segment_fault)
 define_exception(isr_general_protection_fault)
-define_exception(isr_page_fault)
 define_exception_no_code(isr_reserved)
 define_exception_no_code(isr_x87_floating_point_exception)
 define_exception(isr_alignment_check)
@@ -77,3 +76,21 @@ define_exception_no_code(isr_reserved7);
 define_exception(isr_hypervisor_injection_exception)
 define_exception(isr_vmm_communication_exception)
 define_exception_no_code(isr_security_exception)
+
+__attribute__((interrupt))
+void isr_page_fault(struct InterruptStackFrame* frame, uint64_t error_code) {
+
+    (void) frame;
+
+    kprintf(ERROR, "Page Fault\n");
+
+    kprintf(ERROR, "Error Code: %d\n", error_code);
+
+    uintptr_t faulting_address;
+    asm volatile("mov %%cr2, %0" : "=r"(faulting_address));
+
+    kprintf(ERROR, "Faulting Address: %d", faulting_address);
+
+    asm("cli; hlt");
+    while(1);
+}
