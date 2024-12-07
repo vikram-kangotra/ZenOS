@@ -50,20 +50,9 @@ load_cr3:
     mov cr3, rdi
     ret
 
-extern enable_paging
-enable_paging:
-    mov rax, cr4
-    or rax, 1 << 5  ; Enable PAE
-    mov cr4, rax
-
-    mov rcx, 0xC0000080 ; EFER MSR
-    rdmsr
-    or rax, 1 << 8  ; Enable Long Mode
-    wrmsr
-
-    mov rax, cr0
-    or rax, 1 << 31 ; Enable Paging
-    mov cr0, rax
+extern invlpg
+invlpg:
+    invlpg [rdi]
     ret
 
 section .text
@@ -81,19 +70,23 @@ loader:
 setup_page_tables:
     mov eax, page_table_l3
     or eax, 0b11 ; present, writable
-    mov [page_table_l4], eax
+    mov [pml4], eax
 
     mov eax, page_table_l2
     or eax, 0b11 ; present, writable
     mov [page_table_l3], eax
 
+    mov eax, page_table_l1
+    or eax, 0xb11
+    mov [page_table_l2], eax
+
     mov ecx, 0 ; counter
 
 .loop:
-    mov eax, 0x200000
-    mul ecx
-    or eax, 0b10000011 ; present, writable, huge page
-    mov [page_table_l2 + ecx * 8], eax
+    mov eax, ecx
+    shl eax, 12
+    or eax, 0b11 ; present, writable, huge page
+    mov [page_table_l1 + ecx * 8], eax
 
     inc ecx
     cmp ecx, 512
@@ -101,7 +94,7 @@ setup_page_tables:
 
 .enable_paging:
     ; pass page table location to cpu
-    mov eax, page_table_l4
+    mov eax, pml4
     mov cr3, eax
 
     ; enable Physical Address Extension (PAE)
@@ -124,11 +117,14 @@ setup_page_tables:
 
 section .bss
 align 4096
-page_table_l4:
+extern pml4
+pml4:
     resb 4096
 page_table_l3:
     resb 4096
 page_table_l2:
+    resb 4096
+page_table_l1:
     resb 4096
 
 section .bss

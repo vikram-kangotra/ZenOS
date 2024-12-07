@@ -21,6 +21,4 @@ void kmain(struct multiboot_tag* addr) {
     init_idt();
 
     parse_multiboot_tags(addr);
-
-    kprintf(INFO, "Welcome to ZenOS\n");
 }
