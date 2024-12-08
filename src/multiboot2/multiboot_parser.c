@@ -2,19 +2,14 @@
 #include "multiboot2/multiboot_parser.h"
 #include "kernel/kprintf.h"
 
-static framebuffer_info_t framebuffer_info;
+struct multiboot_tag_framebuffer framebuffer_info;
 
-framebuffer_info_t* get_framebuffer_info() {
+struct multiboot_tag_framebuffer* get_framebuffer_info() {
     return &framebuffer_info;
 }
 
 void parse_framebuffer_tag(struct multiboot_tag_framebuffer* framebuffer_tag) {
-
-    framebuffer_info.address = (void*) framebuffer_tag->common.framebuffer_addr;
-    framebuffer_info.bpp = framebuffer_tag->common.framebuffer_bpp;
-    framebuffer_info.height = framebuffer_tag->common.framebuffer_height;
-    framebuffer_info.width = framebuffer_tag->common.framebuffer_width;
-    framebuffer_info.pitch = framebuffer_tag->common.framebuffer_pitch;
+    framebuffer_info = *framebuffer_tag;
 }
 
 void parse_multiboot_tags(struct multiboot_tag* addr) {

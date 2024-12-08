@@ -1,5 +1,6 @@
 #include "drivers/vga.h"
 #include "drivers/serial.h"
+#include "drivers/gfx.h"
 #include "kernel/kprintf.h"
 #include "arch/x86_64/interrupt/gdt.h"
 #include "arch/x86_64/interrupt/idt.h"
@@ -21,4 +22,7 @@ void kmain(struct multiboot_tag* addr) {
     init_idt();
 
     parse_multiboot_tags(addr);
+
+    struct multiboot_tag_framebuffer* fb_info = get_framebuffer_info();
+    draw_line(fb_info, 100, 100, 300, 300, GFX_COLOR_BLUE(fb_info));
 }
