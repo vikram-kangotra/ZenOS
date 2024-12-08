@@ -5,9 +5,16 @@
 void clear_screen(const struct multiboot_tag_framebuffer* fb_info, uint32_t color) {
     size_t height = fb_info->common.framebuffer_height;
     size_t pitch = fb_info->common.framebuffer_pitch;
+    uint32_t* framebuffer = (uint32_t*)fb_info->common.framebuffer_addr; // Cast to 32-bit pointer
 
-    memset((uint8_t*)fb_info->common.framebuffer_addr, color, pitch * height);
+    // Iterate through each pixel in the framebuffer
+    for (size_t y = 0; y < height; y++) {
+        for (size_t x = 0; x < pitch / 4; x++) { // pitch is in bytes, divide by 4 for 32-bit pixels
+            framebuffer[y * (pitch / 4) + x] = color; // Set each pixel to the specified color
+        }
+    }
 }
+
 
 uint32_t get_color(const struct multiboot_tag_framebuffer* fb_info, 
     uint8_t r, uint8_t g, uint8_t b, uint8_t a

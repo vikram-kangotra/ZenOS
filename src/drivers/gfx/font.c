@@ -231,17 +231,62 @@ const uint8_t font_8x8[224][8] = {
     {0x00, 0xcc, 0x00, 0xcc, 0xcc, 0x7c, 0x0c, 0xf8},  // 00ff (ydieresis)
 };
 
-void draw_char(const struct multiboot_tag_framebuffer* fb_info, 
-               uint8_t c, size_t x, size_t y, uint32_t color) {
+static size_t x = 0;
+static size_t y = 0;
+static const size_t SCREEN_WIDTH = 1920;
+static const size_t SCREEN_HEIGHT = 1080;
+static const size_t CHAR_WIDTH = 8;
+static const size_t CHAR_HEIGHT = 8;
 
-    const uint8_t* glyph = font_8x8[(int)c];
+static size_t scale = 0;
 
-    for (int row = 0; row < 8; row++) {
+void set_scale(size_t _scale) {
+    scale = _scale;
+}
+
+static void print_newline() {
+    x = 0;
+    y += scale * CHAR_HEIGHT;
+}
+
+void draw_char(const struct multiboot_tag_framebuffer* fb_info, uint8_t c, uint32_t color) {
+    if (c == '\n') {
+        print_newline();
+        return;
+    }
+
+    const uint8_t* glyph = font_8x8[c];
+
+    for (size_t row = 0; row < CHAR_HEIGHT; row++) {
         uint8_t row_bits = glyph[row];
-        for (int col = 0; col < 8; col++) {
+        for (size_t col = 0; col < CHAR_WIDTH; col++) {
+            // Check if the current pixel in the glyph is set
             if (row_bits & (1 << (7 - col))) {
-                put_pixel(fb_info, x + col, y + row, color);
+                // Draw the pixel scaled
+                for (size_t dy = 0; dy < scale; dy++) { // Vertical scaling
+                    for (size_t dx = 0; dx < scale; dx++) { // Horizontal scaling
+                        // Ensure we do not go out of screen bounds
+                        if (x + dx + col * scale < SCREEN_WIDTH && y + dy + row * scale < SCREEN_HEIGHT) {
+                            put_pixel(fb_info, x + dx + col * scale, y + dy + row * scale, color);
+                        }
+                    }
+                }
             }
         }
     }
+
+    // Move the cursor to the right based on the scaled character width
+    x += CHAR_WIDTH * scale;
+
+    // Handle line wrapping
+    if (x >= SCREEN_WIDTH) {
+        x = 0;
+        y += CHAR_HEIGHT * scale;
+
+        // Reset y if it exceeds the screen height
+        if (y >= SCREEN_HEIGHT) {
+            y = 0;
+        }
+    }
 }
+

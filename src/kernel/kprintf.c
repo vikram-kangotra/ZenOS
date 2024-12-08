@@ -1,10 +1,15 @@
 #include "drivers/vga.h"
 #include "drivers/serial.h"
 #include "kernel/kprintf.h"
+#include "drivers/gfx/gfx.h"
+#include "drivers/gfx/font.h"
 
 void kputchar(char ch) {
     vga_write_char(ch);
     serial_write_char(ch);
+
+    struct multiboot_tag_framebuffer* fb_info = get_framebuffer_info();
+    draw_char(fb_info, ch, 0xffffffff);
 }
 
 #define GET_ARG(type, reg_index, stack_pointer)                \

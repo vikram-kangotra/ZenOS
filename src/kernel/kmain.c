@@ -23,4 +23,16 @@ void kmain(struct multiboot_tag* addr) {
     init_idt();
 
     parse_multiboot_tags(addr);
+
+    set_scale(10);
+
+    struct multiboot_tag_framebuffer* fb_info = get_framebuffer_info();
+
+    clear_screen(fb_info, 0xff4169e1);
+
+    kprintf(INFO, "Welcome to ZenOs\n");
+
+    set_scale(5);
+
+    kprintf(INFO, "> ");
 }
