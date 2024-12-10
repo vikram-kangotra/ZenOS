@@ -3,8 +3,8 @@
 #include "math.h"
 #include "string.h"
 
-static uint64_t foreground_color = 0xffffffff;
-static uint64_t background_color = 0xff000000;
+uint64_t foreground_color = 0xffffffff;
+uint64_t background_color = 0xff000000;
 
 void gfx_set_color(uint64_t foreground, uint64_t background) {
     foreground_color = foreground;

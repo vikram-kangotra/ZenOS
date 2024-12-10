@@ -80,3 +80,43 @@ void draw_char(const struct multiboot_tag_framebuffer* fb_info, uint8_t c, uint3
 
     col += current_character_width * scale; 
 }
+
+#include "kernel/kprintf.h"
+
+#define WIDTH 700
+#define HEIGHT 194
+
+extern uint8_t banner[HEIGHT][WIDTH][3];
+
+extern uint64_t foreground_color;
+extern uint64_t background_color;
+
+void zenos() {
+
+    struct multiboot_tag_framebuffer* fb_info = get_framebuffer_info();
+
+    uint64_t save1 = foreground_color;
+    uint64_t save2 = background_color;
+
+    for (size_t y = 0; y < HEIGHT; ++y) {
+        for (size_t x = 0; x < WIDTH; ++x) {
+            const uint8_t* clr = banner[y][x];
+            uint64_t color = get_color(fb_info, clr[0], clr[1], clr[2], 0xff);
+            uint8_t sum = clr[0] + clr[1] + clr[2];
+            if (sum < 90) {
+                continue;
+            }
+            gfx_set_color(color, color);
+            put_pixel(fb_info, col + x, row + y, color);
+        }
+    }
+
+    row += 80;
+
+    foreground_color = save1;
+    background_color = save2;
+
+
+    kprintf(INFO, "\n");
+    kprintf(INFO, "\n");
+}

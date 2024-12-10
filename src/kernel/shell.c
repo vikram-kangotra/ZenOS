@@ -13,17 +13,26 @@ static void display_prompt() {
 
 static void process_command(const char* input_buffer, struct multiboot_tag_framebuffer* fb_info) {
     if (strcmp(input_buffer, "about") == 0) {
+        zenos();
+        kprintf(DEBUG, "\n");
         kprintf(DEBUG, "ZenOS v1.0\nBuilt with love and low-level magic.\n");
+        kprintf(DEBUG, "ZenOS is a WebAssembly based Operating System focused\n");
+        kprintf(DEBUG, "on high security in embedded Systems\n");
+        kprintf(DEBUG, "\n");
+        kprintf(DEBUG, "Authors: Vikram Kangotra, Disha Baghel, Akshita Singh\n");
     } else if (strcmp(input_buffer, "clear") == 0) {
         clear_screen(fb_info, GFX_COLOR_BLACK(fb_info));
     } else if (strcmp(input_buffer, "time") == 0) {
         rtc_print_time();
         kprintf(DEBUG, "\n");
+    } else if (strcmp(input_buffer, "zen") == 0) {
+        kprintf(DEBUG, "The journey is the reward. Stay calm, code on.\n");
     } else if (strcmp(input_buffer, "help") == 0) {
         kprintf(DEBUG, "Available commands:\n");
         kprintf(DEBUG, "  about  - Show information about the OS\n");
         kprintf(DEBUG, "  clear  - Clear the screen\n");
-        kprintf(DEBUG, "  time   - Current time\n");
+        kprintf(DEBUG, "  time   - Show current time\n");
+        kprintf(DEBUG, "  zen    - Show current time\n");
         kprintf(DEBUG, "  help   - Display this help message\n");
     } else {
         kprintf(ERROR, "Unknown command: %s\n", input_buffer);

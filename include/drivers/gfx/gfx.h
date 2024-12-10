@@ -24,3 +24,5 @@ void fill_rectangle(const struct multiboot_tag_framebuffer* fb_info, size_t x1, 
 
 void draw_circle(const struct multiboot_tag_framebuffer* fb_info, size_t center_x, size_t center_y, size_t radius, uint32_t color);
 void fill_circle(const struct multiboot_tag_framebuffer* fb_info, size_t center_x, size_t center_y, size_t radius, uint32_t color);
+
+void zenos();
