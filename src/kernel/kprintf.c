@@ -19,10 +19,19 @@ void kputchar(char ch) {
 void kprintf(enum LogLevel level, const char* format, ...) {
 
     switch (level) {
-        case INFO: vga_set_color(PRINT_COLOR_LIGHT_GREEN, PRINT_COLOR_BLACK); break;
-        case DEBUG: vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK); break;
+        case INFO: {
+            vga_set_color(PRINT_COLOR_LIGHT_GREEN, PRINT_COLOR_BLACK); 
+            gfx_set_color(0xff00ff00, 0xff000000);
+        } break;
+        case DEBUG: {
+            vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK);
+            gfx_set_color(0xffffffff, 0xff000000);
+        } break;
         case WARN: vga_set_color(PRINT_COLOR_YELLOW, PRINT_COLOR_BLACK); break;
-        case ERROR: vga_set_color(PRINT_COLOR_LIGHT_RED, PRINT_COLOR_BLACK); break;
+        case ERROR: {
+            vga_set_color(PRINT_COLOR_LIGHT_RED, PRINT_COLOR_BLACK); 
+            gfx_set_color(0xffff0000, 0xff000000);
+        } break;
     }
 
     uintptr_t reg_args[4];

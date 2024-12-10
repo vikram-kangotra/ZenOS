@@ -1,20 +1,15 @@
 #include "drivers/gfx/gfx.h"
+#include "stdint.h"
 #include "math.h"
 #include "string.h"
 
-void clear_screen(const struct multiboot_tag_framebuffer* fb_info, uint32_t color) {
-    size_t height = fb_info->common.framebuffer_height;
-    size_t pitch = fb_info->common.framebuffer_pitch;
-    uint32_t* framebuffer = (uint32_t*)fb_info->common.framebuffer_addr; // Cast to 32-bit pointer
+static uint64_t foreground_color = 0xffffffff;
+static uint64_t background_color = 0xff000000;
 
-    // Iterate through each pixel in the framebuffer
-    for (size_t y = 0; y < height; y++) {
-        for (size_t x = 0; x < pitch / 4; x++) { // pitch is in bytes, divide by 4 for 32-bit pixels
-            framebuffer[y * (pitch / 4) + x] = color; // Set each pixel to the specified color
-        }
-    }
+void gfx_set_color(uint64_t foreground, uint64_t background) {
+    foreground_color = foreground;
+    background_color = background;
 }
-
 
 uint32_t get_color(const struct multiboot_tag_framebuffer* fb_info, 
     uint8_t r, uint8_t g, uint8_t b, uint8_t a
@@ -56,6 +51,9 @@ uint32_t get_pixel(const struct multiboot_tag_framebuffer* fb_info, size_t x, si
 }
 
 void put_pixel(const struct multiboot_tag_framebuffer* fb_info, size_t x, size_t y, uint32_t color) {
+
+    color = foreground_color;
+
     uint32_t* fb_addr = (uint32_t*) fb_info->common.framebuffer_addr;
     uint32_t width = fb_info->common.framebuffer_width;
     uint32_t src_color = fb_addr[y * width + x];

@@ -3,11 +3,13 @@
 #include "stdint.h"
 #include "multiboot2/multiboot_parser.h"
 
-#define GFX_COLOR_WHITE(fb_info) (get_color(fb_info, 0xff, 0xff, 0xff, 0xff))
-#define GFX_COLOR_BLACK(fb_info) (get_color(fb_info, 0x00, 0x00, 0x00, 0xff))
+#define GFX_COLOR_WHITE(fb_info) (get_color((fb_info), 0xff, 0xff, 0xff, 0xff))
+#define GFX_COLOR_BLACK(fb_info) (get_color((fb_info), 0x00, 0x00, 0x00, 0xff))
 #define GFX_COLOR_RED(fb_info) (get_color(fb_info, 0xff, 0x00, 0x00, 0xff))
-#define GFX_COLOR_GREEN(fb_info) (get_color(fb_info, 0x00, 0xff, 0x00, 0xff))
+#define GFX_COLOR_GREEN(fb_info) (get_color((fb_info), 0x00, 0xff, 0x00, 0xff))
 #define GFX_COLOR_BLUE(fb_info) (get_color(fb_info, 0x00, 0x00, 0xff, 0xff))
+
+void gfx_set_color(uint64_t foreground, uint64_t background);
 
 void clear_screen(const struct multiboot_tag_framebuffer* fb_info, uint32_t color);
 

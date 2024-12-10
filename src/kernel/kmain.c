@@ -7,6 +7,7 @@
 #include "arch/x86_64/interrupt/idt.h"
 #include "arch/x86_64/paging.h"
 #include "multiboot2/multiboot_parser.h"
+#include "kernel/shell.h"
 
 void kmain(struct multiboot_tag* addr) {    
 
@@ -19,20 +20,12 @@ void kmain(struct multiboot_tag* addr) {
 
     setup_paging();
 
+    parse_multiboot_tags(addr);
+
     init_gdt_with_tss();
     init_idt();
 
-    parse_multiboot_tags(addr);
+    kprintf(INFO, "Welcome To ZenOS!\n");
 
-    set_scale(10);
-
-    struct multiboot_tag_framebuffer* fb_info = get_framebuffer_info();
-
-    clear_screen(fb_info, 0xff4169e1);
-
-    kprintf(INFO, "Welcome to ZenOs\n");
-
-    set_scale(5);
-
-    kprintf(INFO, "> ");
+    shell();
 }
