@@ -48,6 +48,8 @@ bits 32
 loader:
     mov esp, kernel_stack + KERNEL_STACK_SIZE
 
+    mov [multiboot_addr], ebx
+
     call setup_page_tables
 
     lgdt [gdt64.Pointer]
@@ -98,6 +100,10 @@ setup_page_tables:
     mov cr0, eax
 
     ret
+
+extern multiboot_addr
+multiboot_addr:
+    resd 1
 
 section .bss
 align 4096
