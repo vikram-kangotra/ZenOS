@@ -55,11 +55,79 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         kputchar('-');
                         value = -value;
                     }
+                    char buffer[12];
+                    int i = 0;
+                    do {
+                        buffer[i++] = '0' + value % 10;
+                        value /= 10;
+                    } while (value);
+                    while (i--) {
+                        kputchar(buffer[i]);
+                    }
+                    break;
+                }
+                case 'u': {
+                    unsigned int value = GET_ARG(unsigned int, reg_index, stack_args);
                     char buffer[10];
                     int i = 0;
                     do {
                         buffer[i++] = '0' + value % 10;
                         value /= 10;
+                    } while (value);
+                    while (i--) {
+                        kputchar(buffer[i]);
+                    }
+                    break;
+                }
+                case 'x': {
+                    unsigned int value = GET_ARG(unsigned int, reg_index, stack_args);
+                    char buffer[8];
+                    int i = 0;
+                    do {
+                        int digit = value % 16;
+                        buffer[i++] = (digit < 10) ? ('0' + digit) : ('a' + digit - 10);
+                        value /= 16;
+                    } while (value);
+                    while (i--) {
+                        kputchar(buffer[i]);
+                    }
+                    break;
+                }
+                case 'p': {
+                    uintptr_t ptr = GET_ARG(uintptr_t, reg_index, stack_args);
+                    kputchar('0'); kputchar('x');
+                    char buffer[16];
+                    int i = 0;
+                    do {
+                        int digit = ptr % 16;
+                        buffer[i++] = (digit < 10) ? ('0' + digit) : ('a' + digit - 10);
+                        ptr /= 16;
+                    } while (ptr);
+                    while (i--) {
+                        kputchar(buffer[i]);
+                    }
+                    break;
+                }
+                case 'o': {
+                    unsigned int value = GET_ARG(unsigned int, reg_index, stack_args);
+                    char buffer[11];
+                    int i = 0;
+                    do {
+                        buffer[i++] = '0' + (value % 8);
+                        value /= 8;
+                    } while (value);
+                    while (i--) {
+                        kputchar(buffer[i]);
+                    }
+                    break;
+                }
+                case 'b': {
+                    unsigned int value = GET_ARG(unsigned int, reg_index, stack_args);
+                    char buffer[32];
+                    int i = 0;
+                    do {
+                        buffer[i++] = '0' + (value & 1);
+                        value >>= 1;
                     } while (value);
                     while (i--) {
                         kputchar(buffer[i]);
@@ -81,3 +149,4 @@ void kprintf(enum LogLevel level, const char* format, ...) {
         }
     }
 }
+
