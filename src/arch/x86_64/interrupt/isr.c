@@ -3,10 +3,10 @@
 
 void print_interrupt_stack_frame(struct InterruptStackFrame* frame) {
 
-    kprintf(ERROR, "RIP: %d\n", frame->rip);
+    kprintf(ERROR, "RIP: %p\n", frame->rip);
     kprintf(ERROR, "CS: %d\n", frame->cs);
     kprintf(ERROR, "RFLAGS: %d\n", frame->rflags);
-    kprintf(ERROR, "RSP: %d\n", frame->rsp);
+    kprintf(ERROR, "RSP: %p\n", frame->rsp);
     kprintf(ERROR, "SS: %d\n", frame->ss);
 }
 
