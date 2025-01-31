@@ -4,8 +4,11 @@
 #include "kernel/kprintf.h"
 #include "arch/x86_64/interrupt/gdt.h"
 #include "arch/x86_64/interrupt/idt.h"
+#include "multiboot2/multiboot2_parser.h"
 
 void kmain() {
+
+    multiboot2_parse();
 
     init_serial();
 
@@ -18,6 +21,7 @@ void kmain() {
     init_idt();
 
     kprintf(INFO, "Welcome to ZenOS\n");
-
-    kprintf(DEBUG, "KERNEL_END: %d\n", KERNEL_END);
+    
+    kprintf(DEBUG, "KERNEL_END: %p\n", &KERNEL_END);
+    kprintf(DEBUG, "Total Memory: %d\n", get_total_ram());
 }

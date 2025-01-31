@@ -2,4 +2,4 @@
 
 #include "stdint.h"
 
-extern uint32_t KERNEL_END;
+extern uint64_t KERNEL_END;

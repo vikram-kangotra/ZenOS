@@ -101,9 +101,9 @@ setup_page_tables:
 
     ret
 
+section .data
 extern multiboot_addr
-multiboot_addr:
-    resd 1
+multiboot_addr: dd 0
 
 section .bss
 align 4096
