@@ -2,9 +2,24 @@
 #include "drivers/serial.h"
 #include "kernel/kprintf.h"
 
-void kputchar(char ch) {
-    vga_write_char(ch);
-    serial_write_char(ch);
+#define BUFFER_SIZE 4000
+
+static char buffer[BUFFER_SIZE];
+static size_t buffer_index = 0;
+
+void flush_buffer() {
+    for (size_t i = 0; i < buffer_index; i++) {
+        vga_write_char(buffer[i]);
+        serial_write_char(buffer[i]);
+    }
+    buffer_index = 0;
+}
+
+void buffered_kputchar(char ch) {
+    if (buffer_index >= BUFFER_SIZE - 1) {
+        flush_buffer();  // Flush before buffer overflows
+    }
+    buffer[buffer_index++] = ch;
 }
 
 #define GET_ARG(type, reg_index, stack_pointer)                \
@@ -39,20 +54,20 @@ void kprintf(enum LogLevel level, const char* format, ...) {
             switch (*p) {
                 case 'c': {
                     char ch = GET_ARG(char, reg_index, stack_args);
-                    kputchar(ch);
+                    buffered_kputchar(ch);
                     break;
                 }
                 case 's': {
                     const char* str = GET_ARG(const char*, reg_index, stack_args);
                     while (*str) {
-                        kputchar(*str++);
+                        buffered_kputchar(*str++);
                     }
                     break;
                 }
                 case 'd': {
                     int value = GET_ARG(int, reg_index, stack_args);
                     if (value < 0) {
-                        kputchar('-');
+                        buffered_kputchar('-');
                         value = -value;
                     }
                     char buffer[12];
@@ -62,7 +77,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 10;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
@@ -75,7 +90,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 10;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
@@ -89,13 +104,14 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 16;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
                 case 'p': {
                     uintptr_t ptr = GET_ARG(uintptr_t, reg_index, stack_args);
-                    kputchar('0'); kputchar('x');
+                    buffered_kputchar('0'); 
+                    buffered_kputchar('x');
                     char buffer[16];
                     int i = 0;
                     do {
@@ -104,7 +120,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         ptr /= 16;
                     } while (ptr);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
@@ -117,7 +133,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 8;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
@@ -130,23 +146,24 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value >>= 1;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        buffered_kputchar(buffer[i]);
                     }
                     break;
                 }
                 case '%': {
-                    kputchar('%');
+                    buffered_kputchar('%');
                     break;
                 }
                 default: {
-                    kputchar('%');
-                    kputchar(*p);
+                    buffered_kputchar('%');
+                    buffered_kputchar(*p);
                     break;
                 }
             }
         } else {
-            kputchar(*p);
+            buffered_kputchar(*p);
         }
     }
-}
 
+    flush_buffer();  // Ensure everything is written to the screen
+}
