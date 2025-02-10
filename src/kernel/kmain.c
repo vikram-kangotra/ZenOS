@@ -6,6 +6,7 @@
 #include "arch/x86_64/interrupt/idt.h"
 #include "multiboot2/multiboot2_parser.h"
 #include "kernel/mm/pmm.h"
+#include "kernel/mem.h"
 
 void kmain() {
 
