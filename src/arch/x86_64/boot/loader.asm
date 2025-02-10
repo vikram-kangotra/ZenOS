@@ -43,6 +43,21 @@ sti:
     sti
     ret
 
+extern invlpg
+invlpg:
+    invlpg [rdi]
+    ret
+
+extern get_current_pml4
+get_current_pml4:
+    mov rax, cr3
+    ret
+
+extern get_faulting_address
+get_faulting_address:
+    mov rax, cr2
+    ret
+
 section .text
 bits 32
 loader:
@@ -58,13 +73,13 @@ loader:
     hlt
 
 setup_page_tables:
-    mov eax, page_table_l3
+    mov eax, pdpt
     or eax, 0b11 ; present, writable
-    mov [page_table_l4], eax
+    mov [pml4], eax
 
-    mov eax, page_table_l2
+    mov eax, pd
     or eax, 0b11 ; present, writable
-    mov [page_table_l3], eax
+    mov [pdpt], eax
 
     mov ecx, 0 ; counter
 
@@ -72,7 +87,7 @@ setup_page_tables:
     mov eax, 0x200000
     mul ecx
     or eax, 0b10000011 ; present, writable, huge page
-    mov [page_table_l2 + ecx * 8], eax
+    mov [pd + ecx * 8], eax
 
     inc ecx
     cmp ecx, 512
@@ -80,7 +95,7 @@ setup_page_tables:
 
 .enable_paging:
     ; pass page table location to cpu
-    mov eax, page_table_l4
+    mov eax, pml4
     mov cr3, eax
 
     ; enable Physical Address Extension (PAE)
@@ -107,11 +122,12 @@ multiboot_addr: dd 0
 
 section .bss
 align 4096
-page_table_l4:
+extern pml4
+pml4:
     resb 4096
-page_table_l3:
+pdpt:
     resb 4096
-page_table_l2:
+pd:
     resb 4096
 
 section .bss
