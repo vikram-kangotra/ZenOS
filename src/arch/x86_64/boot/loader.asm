@@ -45,20 +45,38 @@ sti:
     sti
     ret
 
+<<<<<<< HEAD
 extern load_cr3
 load_cr3:
     mov cr3, rdi
     ret
 
+=======
+>>>>>>> refs/remotes/origin/main
 extern invlpg
 invlpg:
     invlpg [rdi]
     ret
 
+<<<<<<< HEAD
+=======
+extern get_current_pml4
+get_current_pml4:
+    mov rax, cr3
+    ret
+
+extern get_faulting_address
+get_faulting_address:
+    mov rax, cr2
+    ret
+
+>>>>>>> refs/remotes/origin/main
 section .text
 bits 32
 loader:
     mov esp, kernel_stack + KERNEL_STACK_SIZE
+
+    mov [multiboot_addr], ebx
 
     call setup_page_tables
 
@@ -68,13 +86,13 @@ loader:
     hlt
 
 setup_page_tables:
-    mov eax, page_table_l3
+    mov eax, pdpt
     or eax, 0b11 ; present, writable
     mov [pml4], eax
 
-    mov eax, page_table_l2
+    mov eax, pd
     or eax, 0b11 ; present, writable
-    mov [page_table_l3], eax
+    mov [pdpt], eax
 
     mov eax, page_table_l1
     or eax, 0xb11
@@ -83,10 +101,17 @@ setup_page_tables:
     mov ecx, 0 ; counter
 
 .loop:
+<<<<<<< HEAD
     mov eax, ecx
     shl eax, 12
     or eax, 0b11 ; present, writable, huge page
     mov [page_table_l1 + ecx * 8], eax
+=======
+    mov eax, 0x200000
+    mul ecx
+    or eax, 0b10000011 ; present, writable, huge page
+    mov [pd + ecx * 8], eax
+>>>>>>> refs/remotes/origin/main
 
     inc ecx
     cmp ecx, 512
@@ -115,14 +140,18 @@ setup_page_tables:
 
     ret
 
+section .data
+extern multiboot_addr
+multiboot_addr: dd 0
+
 section .bss
 align 4096
 extern pml4
 pml4:
     resb 4096
-page_table_l3:
+pdpt:
     resb 4096
-page_table_l2:
+pd:
     resb 4096
 page_table_l1:
     resb 4096
