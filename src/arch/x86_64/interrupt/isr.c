@@ -1,13 +1,15 @@
 #include "arch/x86_64/interrupt/isr.h"
 #include "kernel/kprintf.h"
+#include "kernel/mm/vmm.h"
+#include "arch/x86_64/asm.h"
 
 void print_interrupt_stack_frame(struct InterruptStackFrame* frame) {
 
     kprintf(ERROR, "RIP: %p\n", frame->rip);
-    kprintf(ERROR, "CS: %d\n", frame->cs);
-    kprintf(ERROR, "RFLAGS: %d\n", frame->rflags);
+    kprintf(ERROR, "CS: 0x%x\n", frame->cs);
+    kprintf(ERROR, "RFLAGS: 0x%x\n", frame->rflags);
     kprintf(ERROR, "RSP: %p\n", frame->rsp);
-    kprintf(ERROR, "SS: %d\n", frame->ss);
+    kprintf(ERROR, "SS: 0x%x\n", frame->ss);
 }
 
 __attribute__((interrupt))
@@ -59,7 +61,6 @@ define_exception(isr_invalid_tss)
 define_exception(isr_segment_not_present)
 define_exception(isr_stack_segment_fault)
 define_exception(isr_general_protection_fault)
-define_exception(isr_page_fault)
 define_exception_no_code(isr_reserved)
 define_exception_no_code(isr_x87_floating_point_exception)
 define_exception(isr_alignment_check)
@@ -77,3 +78,21 @@ define_exception_no_code(isr_reserved7);
 define_exception(isr_hypervisor_injection_exception)
 define_exception(isr_vmm_communication_exception)
 define_exception_no_code(isr_security_exception)
+
+__attribute__((interrupt))
+void isr_page_fault(struct InterruptStackFrame* frame, uint64_t error_code) {
+    uintptr_t faulting_address = get_faulting_address();
+    
+    kprintf(ERROR, "Faulting Address: %p\n", faulting_address);
+    
+    uintptr_t virtual_address = faulting_address & ~(PAGE_SIZE - 1);
+    
+    uintptr_t new_frame = (uintptr_t) buddy_alloc(PAGE_SIZE);
+
+    if (!new_frame) {
+        default_handler(frame, error_code);
+        return;
+    }
+    
+    map_virtual_to_physical(virtual_address, new_frame);
+}

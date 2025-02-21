@@ -1,7 +1,5 @@
-#include "stdint.h"
-#include "stddef.h"
-
-#define PAGE_SIZE 4096
+#include "kernel/mm/pmm.h"
+#include "kernel/kprintf.h"
 
 static uint64_t MAX_ORDER = 0;
 static uint64_t MEM_SIZE = 0;
@@ -35,6 +33,7 @@ void buddy_init(uintptr_t mem_start, uint64_t mem_size) {
 void* buddy_alloc(size_t size) {
 
     if (size == 0 || size > MEM_SIZE) {
+        kprintf(ERROR, "Invalid memory size\n");
         return NULL;
     }
 
@@ -56,16 +55,18 @@ void* buddy_alloc(size_t size) {
                 buddy->next = free_lists[j - 1];
                 free_lists[j - 1] = buddy;
             }
-            return block;
+            return (void*)((uintptr_t)block + sizeof(Block));
         }
-    }
+    } 
+
+    kprintf(ERROR, "Memory insufficient\n");
 
     return NULL;
 }
 
 void buddy_free(void* ptr) {
 
-    Block* block = (Block*) ptr;
+    Block* block = (Block*)((uintptr_t)ptr - sizeof(Block));
 
     size_t order = 0;
     while ((uint8_t*) block - memory_pool >= (1 << order)) {
