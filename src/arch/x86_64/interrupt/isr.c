@@ -81,6 +81,13 @@ define_exception_no_code(isr_security_exception)
 
 __attribute__((interrupt))
 void isr_page_fault(struct InterruptStackFrame* frame, uint64_t error_code) {
+
+    if (error_code & 0x1) {
+        kprintf(ERROR, "Page fault caused by protection violation!\n");
+        default_handler(frame, error_code);
+        return;
+    }
+
     uintptr_t faulting_address = get_faulting_address();
     
     kprintf(ERROR, "Faulting Address: %p\n", faulting_address);
