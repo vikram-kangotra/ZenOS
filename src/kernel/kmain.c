@@ -7,6 +7,7 @@
 #include "multiboot2/multiboot2_parser.h"
 #include "kernel/mm/pmm.h"
 #include "kernel/mm/vmm.h"
+#include "arch/x86_64/interrupt/pit.h"
 
 void kmain() {
 
@@ -20,20 +21,11 @@ void kmain() {
     vga_clear_screen();
 
     init_gdt_with_tss();
-    init_idt();
 
-    kprintf(INFO, "Welcome to ZenOS\n");
-    
-    kprintf(DEBUG, "KERNEL_END: %p\n", &KERNEL_END);
-    kprintf(DEBUG, "Total Memory: %d\n", get_total_ram());
+    init_pit(100);
+    init_idt();
 
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
 
-    int* fb = (int*) 0x00008fffffff;
-    *fb = 1234;
-
-    kprintf(DEBUG, "fb = %d\n", *fb);
-
-    kprintf(DEBUG, "Physical Address = %p", virtual_to_physical((uintptr_t)fb));
-
+    kprintf(INFO, "Welcome to ZenOS\n");
 }

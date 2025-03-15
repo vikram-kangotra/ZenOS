@@ -66,4 +66,4 @@ struct IDT_Ptr {
 } __attribute__((packed));
 
 void init_idt();
-void set_idt_entry(struct IDT_Entry* entry, uint64_t handler, uint16_t selector, uint8_t ist, uint8_t flags, uint8_t gate_type);
+void set_idt_entry(uint32_t idt_index, uint64_t handler, uint16_t selector, uint8_t ist, uint8_t flags, uint8_t gate_type);
