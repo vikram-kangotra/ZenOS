@@ -35,8 +35,6 @@ void irq_pit_handler(struct InterruptStackFrame* frame) {
 
     (void) frame;
 
-    kprintf(INFO, "hello %d\n", _pit_ticks);
-
     ++_pit_ticks;
 
     pic_eoi(0x20);
