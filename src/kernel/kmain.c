@@ -8,6 +8,7 @@
 #include "kernel/mm/pmm.h"
 #include "kernel/mm/vmm.h"
 #include "arch/x86_64/interrupt/pit.h"
+#include "kernel/mm/heap.h"
 
 void kmain() {
 
@@ -28,4 +29,10 @@ void kmain() {
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
 
     kprintf(INFO, "Welcome to ZenOS\n");
+
+    void *ptr1 = kmalloc(15);
+    void *ptr2 = kmalloc(1);
+    void *ptr3 = kmalloc(3);
+
+    kprintf(INFO, "Allocated: %p %p %p\n", ptr1, ptr2, ptr3);
 }
