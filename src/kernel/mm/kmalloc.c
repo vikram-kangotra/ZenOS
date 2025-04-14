@@ -1,9 +1,13 @@
-#include "kernel/mm/vmm.h"
-#include "kernel/mm/heap.h"
-#include "kernel/kprintf.h"
+#include <kernel/mm/vmm.h>
+#include <kernel/mm/kmalloc.h>
+#include <kernel/kprintf.h>
+
+/*
+Kernel Heap implementation using a linked list of free blocks.
+*/
 
 #define PAGE_SIZE 4096
-#define HEAP_START 0xFFFF800000000000
+#define HEAP_START 0x1000000
 #define HEAP_SIZE (PAGE_SIZE * 128)
 #define ALIGN_UP(x, align) (((x) + (align) - 1) & ~((align) - 1))
 
@@ -19,7 +23,7 @@ static void expand_heap(size_t size) {
     size = ALIGN_UP(size, PAGE_SIZE);
     for (size_t i = 0; i < size; i += PAGE_SIZE) {
         uintptr_t vaddr = heap_top + i;
-        uintptr_t paddr = vaddr - HEAP_START;
+        uintptr_t paddr = vaddr;
         map_virtual_to_physical(vaddr, paddr);
     }
     heap_top += size;
@@ -31,7 +35,6 @@ void *kmalloc(size_t size) {
     size = ALIGN_UP(size, sizeof(void *));
 
     free_block_t **prev = &free_list;
-
     for (free_block_t *block = free_list; block; block = block->next) {
         if (block->size >= size) {
             *prev = block->next;
@@ -47,4 +50,12 @@ void *kmalloc(size_t size) {
     void *ptr = (void*) heap_top;
     heap_top += size;
     return ptr;
+}
+
+void kfree(void *ptr) {
+    if (!ptr) return;
+
+    free_block_t *block = (free_block_t *)ptr - 1;
+    block->next = free_list;
+    free_list = block;
 }
