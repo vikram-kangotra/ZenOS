@@ -44,7 +44,12 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY: clean
+.PHONY: clean run
 clean:
 	rm -rf $(BUILD_DIR) $(DIST_DIR)
 	rm $(ISO_DIR)/boot/kernel.elf
+
+run: $(ISO)
+	qemu-system-x86_64 -cdrom $(ISO) -serial file:kernel.log -m 1024 \
+  	-vga std -device VGA,vgamem_mb=1024 \
+  	-display sdl -full-screen
