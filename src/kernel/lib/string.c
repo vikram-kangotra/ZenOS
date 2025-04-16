@@ -1,4 +1,6 @@
 #include <string.h>
+#include "string.h"
+#include "kernel/mm/kmalloc.h"
 
 void *memset(void *s, int c, size_t n) {
     for (size_t i = 0; i < n; i++) {
@@ -108,4 +110,48 @@ char *strncat(char *dest, const char *src, size_t n) {
 
     while (n-- > 0 && (*dest++ = *src++) != '\0');
     return original_dest;
+}
+
+char *strdup(const char *s) {
+    size_t len = strlen(s);
+    char *copy = kmalloc(len + 1);
+    if (!copy) {
+        return NULL;
+    }
+    memcpy(copy, s, len + 1);
+    return copy;
+}
+
+char *strndup(const char *s, size_t n) {
+    size_t len = strlen(s);
+    n = (n < len) ? n : len;
+    char *copy = kmalloc(n + 1);
+    if (!copy) {
+        return NULL;
+    }
+    memcpy(copy, s, n);
+    copy[n] = '\0';
+    return copy;
+}
+
+char *strtok(char *str, const char *delim) {
+    static char *current = NULL;
+    if (str) {
+        current = str;
+    }
+    if (!current) {
+        return NULL;
+    }
+
+    char *token = current;
+    for (char *p = current; *p != '\0'; p++) {
+        if (strchr(delim, *p)) {
+            *p = '\0';
+            current = p + 1;
+            return token;
+        }
+    }
+
+    current = NULL;
+    return token;
 }

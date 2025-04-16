@@ -11,6 +11,7 @@
 #include "kernel/mm/kmalloc.h"
 #include "kernel/cli/cli.h"
 #include "drivers/rtc.h"
+#include "kernel/fs/vfs.h"
 
 // Test different allocation sizes
 #define SMALL_SIZE 16
@@ -116,6 +117,10 @@ void kmain() {
 
     // Initialize memory management
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
+    
+    // Initialize filesystem
+    vfs_init();
+    
     kprintf(INFO, "Welcome to ZenOS\n");
 
     // Start the command line interface

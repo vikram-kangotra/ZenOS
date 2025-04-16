@@ -8,6 +8,7 @@
 #include "arch/x86_64/interrupt/pit.h"
 #include "multiboot2/multiboot2_parser.h"
 #include "drivers/rtc.h"
+#include "kernel/fs/vfs.h"
 
 #define CLI_BUFFER_SIZE 256
 #define CLI_PROMPT "ZenOS> "
@@ -19,17 +20,43 @@ struct Command {
     const char* description;
 };
 
+static void cmd_help(const char* args);
+static void cmd_clear(const char* args);
+static void cmd_echo(const char* args);
+static void cmd_meminfo(const char* args);
+static void cmd_sysinfo(const char* args);
+static void cmd_time(const char* args);
+static void cmd_uptime(const char* args);
+static void cmd_ls(const char* args);
+static void cmd_cd(const char* args);
+static void cmd_mkdir(const char* args);
+static void cmd_touch(const char* args);
+static void cmd_cat(const char* args);
+
+// Command table
+static const struct Command commands[] = {
+    {"help", cmd_help, "Show help message"},
+    {"clear", cmd_clear, "Clear the screen"},
+    {"echo", cmd_echo, "Print arguments"},
+    {"meminfo", cmd_meminfo, "Show memory information"},
+    {"sysinfo", cmd_sysinfo, "Show system information"},
+    {"time", cmd_time, "Show current system time"},
+    {"uptime", cmd_uptime, "Show system uptime"},
+    {"ls", cmd_ls, "List directory contents"},
+    {"cd", cmd_cd, "Change directory"},
+    {"mkdir", cmd_mkdir, "Create directory"},
+    {"touch", cmd_touch, "Create empty file"},
+    {"cat", cmd_cat, "Display file contents"},
+    {NULL, NULL, NULL}  // End marker
+};
+
 // Command handlers
 static void cmd_help(const char* args) {
     (void)args;
     kprintf(CLI, "Available commands:\n");
-    kprintf(CLI, "  help     - Show this help message\n");
-    kprintf(CLI, "  clear    - Clear the screen\n");
-    kprintf(CLI, "  echo     - Print arguments\n");
-    kprintf(CLI, "  meminfo  - Show memory information\n");
-    kprintf(CLI, "  sysinfo  - Show system information\n");
-    kprintf(CLI, "  time     - Show current system time\n");
-    kprintf(CLI, "  uptime   - Show system uptime\n");
+    for (const struct Command* cmd = commands; cmd->name; cmd++) {
+        kprintf(CLI, "  %s - %s\n", cmd->name, cmd->description);
+    }
 }
 
 static void cmd_clear(const char* args) {
@@ -94,55 +121,137 @@ static void cmd_uptime(const char* args) {
             hours % 24, minutes % 60, seconds % 60);
 }
 
-// Command table
-static const struct Command commands[] = {
-    {"help", cmd_help, "Show help message"},
-    {"clear", cmd_clear, "Clear the screen"},
-    {"echo", cmd_echo, "Print arguments"},
-    {"meminfo", cmd_meminfo, "Show memory information"},
-    {"sysinfo", cmd_sysinfo, "Show system information"},
-    {"time", cmd_time, "Show current system time"},
-    {"uptime", cmd_uptime, "Show system uptime"},
-    {NULL, NULL, NULL}  // End marker
-};
+static void cmd_ls(const char* args) {
+    (void)args;
+    struct vfs_node* dir = vfs_getcwd();
+    if (!dir) {
+        kprintf(ERROR, "Failed to get current directory\n");
+        return;
+    }
+    
+    uint32_t index = 0;
+    struct vfs_node* entry;
+    while ((entry = vfs_readdir(dir, index++)) != NULL) {
+        const char* type = (entry->flags & FS_DIRECTORY) ? "d" : "-";
+        kprintf(CLI, "%s %s\n", type, entry->name);
+    }
+}
+
+static void cmd_cd(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: cd <directory>\n");
+        return;
+    }
+    
+    if (!vfs_chdir(args)) {
+        kprintf(ERROR, "Failed to change directory\n");
+    }
+}
+
+static void cmd_mkdir(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: mkdir <directory>\n");
+        return;
+    }
+    
+    struct vfs_node* dir = vfs_create_node(args, FS_DIRECTORY);
+    if (!dir) {
+        kprintf(ERROR, "Failed to create directory\n");
+        return;
+    }
+    
+    struct vfs_node* parent = vfs_getcwd();
+    dir->parent = parent;
+    dir->next = parent->children;
+    parent->children = dir;
+}
+
+static void cmd_touch(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: touch <file>\n");
+        return;
+    }
+    
+    struct vfs_node* file = vfs_create_node(args, FS_FILE);
+    if (!file) {
+        kprintf(ERROR, "Failed to create file\n");
+        return;
+    }
+    
+    struct vfs_node* parent = vfs_getcwd();
+    file->parent = parent;
+    file->next = parent->children;
+    parent->children = file;
+}
+
+static void cmd_cat(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: cat <file>\n");
+        return;
+    }
+    
+    struct vfs_node* file = vfs_open(args, FS_READ);
+    if (!file) {
+        kprintf(ERROR, "Failed to open file\n");
+        return;
+    }
+    
+    uint8_t buffer[1024];
+    uint32_t bytes_read;
+    while ((bytes_read = vfs_read(file, 0, sizeof(buffer), buffer)) > 0) {
+        for (uint32_t i = 0; i < bytes_read; i++) {
+            kprintf(CLI, "%c", buffer[i]);
+        }
+    }
+    
+    vfs_close(file);
+}
 
 // CLI state
 static char _input_buffer[CLI_BUFFER_SIZE];
 static size_t _buffer_pos = 0;
+static char _cmd_buffer[256];  // Static buffer for command name
 
 // Process a command line
 static void process_command(const char* line) {
     if (!line || !*line) return;
 
     // Find command and arguments
-    const char* cmd_end = strchr(line, ' ');
     const char* cmd = line;
     const char* args = NULL;
     
-    if (cmd_end) {
-        args = cmd_end + 1;
-        while (*args == ' ') args++;  // Skip leading spaces
+    // Skip leading spaces
+    while (*cmd == ' ') cmd++;
+    if (!*cmd) return;  // Empty line after skipping spaces
+    
+    // Find the end of the command (first space or null terminator)
+    const char* cmd_end = cmd;
+    while (*cmd_end && *cmd_end != ' ' && *cmd_end != '\0') cmd_end++;
+    
+    // Find the start of arguments (skip spaces)
+    args = cmd_end;
+    while (*args == ' ') args++;
+    
+    // Copy command to static buffer
+    size_t cmd_len = cmd_end - cmd;
+    if (cmd_len >= sizeof(_cmd_buffer)) {
+        cmd_len = sizeof(_cmd_buffer) - 1;
     }
-
+    strncpy(_cmd_buffer, cmd, cmd_len);
+    _cmd_buffer[cmd_len] = '\0';
+    
     // Find and execute command
     for (const struct Command* cmd_ptr = commands; cmd_ptr->name; cmd_ptr++) {
-        if (strncmp(cmd, cmd_ptr->name, cmd_end ? (size_t) (cmd_end - cmd) : strlen(cmd)) == 0) {
-            cmd_ptr->handler(args);
+        if (strcmp(_cmd_buffer, cmd_ptr->name) == 0) {
+            // Pass the arguments as-is, including any spaces
+            cmd_ptr->handler(*args ? args : NULL);
             return;
         }
     }
 
-    // Print error message using supported format specifiers
-    kprintf(ERROR, "Unknown command: ");
-    if (cmd_end) {
-        char cmd_name[256];
-        size_t len = cmd_end - cmd;
-        strncpy(cmd_name, cmd, len);
-        cmd_name[len] = '\0';
-        kprintf(ERROR, "%s\n", cmd_name);
-    } else {
-        kprintf(ERROR, "%s\n", cmd);
-    }
+    // Print error message
+    kprintf(ERROR, "Unknown command: '%s'\n", _cmd_buffer);
+    kprintf(CLI, "Type 'help' for a list of available commands\n");
 }
 
 // Handle special keys
