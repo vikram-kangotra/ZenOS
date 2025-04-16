@@ -9,13 +9,19 @@ void kputchar(char ch) {
 }
 
 void kprintf(enum LogLevel level, const char* format, ...) {
-    switch (level) {
-        case INFO: vga_set_color(PRINT_COLOR_LIGHT_GREEN, PRINT_COLOR_BLACK); break;
-        case DEBUG: vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK); break;
-        case WARN: vga_set_color(PRINT_COLOR_YELLOW, PRINT_COLOR_BLACK); break;
-        case ERROR: vga_set_color(PRINT_COLOR_LIGHT_RED, PRINT_COLOR_BLACK); break;
+    // Get log configuration for this level
+    const struct LogConfig* config = &log_configs[level];
+    
+    // Set colors
+    vga_set_color(config->fg_color, config->bg_color);
+    
+    // Print prefix
+    const char* prefix = config->prefix;
+    while (*prefix) {
+        kputchar(*prefix++);
     }
 
+    // Parse and print format string
     va_list args;
     va_start(args, format);
 
@@ -134,5 +140,8 @@ void kprintf(enum LogLevel level, const char* format, ...) {
     }
 
     va_end(args);
+    
+    // Reset colors to default
+    vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK);
 }
 

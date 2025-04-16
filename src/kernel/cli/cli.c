@@ -17,21 +17,21 @@ struct Command {
 // Command handlers
 static void cmd_help(const char* args) {
     (void)args;
-    kprintf(INFO, "Available commands:\n");
-    kprintf(INFO, "  help    - Show this help message\n");
-    kprintf(INFO, "  clear   - Clear the screen\n");
-    kprintf(INFO, "  echo    - Print arguments\n");
+    kprintf(CLI, "Available commands:\n");
+    kprintf(CLI, "  help    - Show this help message\n");
+    kprintf(CLI, "  clear   - Clear the screen\n");
+    kprintf(CLI, "  echo    - Print arguments\n");
 }
 
 static void cmd_clear(const char* args) {
     (void)args;
     vga_clear_screen();
-    kprintf(INFO, CLI_PROMPT);
+    kprintf(CLI, CLI_PROMPT);
 }
 
 static void cmd_echo(const char* args) {
     if (args && *args) {
-        kprintf(INFO, "%s\n", args);
+        kprintf(CLI, "%s\n", args);
     } else {
         kprintf(ERROR, "Usage: echo <text>\n");
     }
@@ -90,15 +90,15 @@ static bool handle_special_keys(char c) {
         case '\b':  // Backspace
             if (_buffer_pos > 0) {
                 _buffer_pos--;
-                kprintf(INFO, "\b \b");  // Erase character
+                kprintf(CLI, "\b \b");  // Erase character
             }
             return true;
         case '\n':  // Enter
-            kprintf(INFO, "\n");
+            kprintf(CLI, "\n");
             _input_buffer[_buffer_pos] = '\0';
             process_command(_input_buffer);
             _buffer_pos = 0;
-            kprintf(INFO, CLI_PROMPT);
+            kprintf(CLI, CLI_PROMPT);
             return true;
         default:
             return false;
@@ -107,8 +107,8 @@ static bool handle_special_keys(char c) {
 
 // Main CLI loop
 void cli_run(void) {
-    kprintf(INFO, "\nWelcome to ZenOS CLI\n");
-    kprintf(INFO, CLI_PROMPT);
+    kprintf(CLI, "\nWelcome to ZenOS CLI\n");
+    kprintf(CLI, CLI_PROMPT);
 
     while (true) {
         char c = keyboard_read_blocking();
@@ -121,7 +121,7 @@ void cli_run(void) {
         // Handle regular input
         if (_buffer_pos < CLI_BUFFER_SIZE - 1) {
             _input_buffer[_buffer_pos++] = c;
-            kprintf(INFO, "%c", c);
+            kprintf(CLI, "%c", c);
         }
     }
 } 
