@@ -101,5 +101,5 @@ void isr_page_fault(struct InterruptStackFrame* frame, uint64_t error_code) {
         return;
     }
     
-    map_virtual_to_physical(virtual_address, new_frame);
+    map_virtual_to_physical(virtual_address, new_frame, PAGE_PRESENT | PAGE_WRITABLE);
 }

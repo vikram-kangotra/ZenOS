@@ -100,10 +100,16 @@ void kmain() {
     vga_set_color(PRINT_COLOR_WHITE, PRINT_COLOR_BLACK);
     vga_clear_screen();
 
+    // Initialize GDT first (required for protected mode)
     init_gdt_with_tss();
+    
+    // Initialize IDT and PIC
+    init_idt();  // This also enables interrupts with sti()
+    
+    // Initialize PIT after IDT is set up
     init_pit(100);
-    init_idt();
 
+    // Initialize memory management
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
     kprintf(INFO, "Welcome to ZenOS\n");
 

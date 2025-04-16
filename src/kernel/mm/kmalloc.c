@@ -24,7 +24,7 @@ static void expand_heap(size_t size) {
     for (size_t i = 0; i < size; i += PAGE_SIZE) {
         uintptr_t vaddr = heap_top + i;
         uintptr_t paddr = vaddr;
-        map_virtual_to_physical(vaddr, paddr);
+        map_virtual_to_physical(vaddr, paddr, PAGE_PRESENT | PAGE_WRITABLE);
     }
     heap_top += size;
 }

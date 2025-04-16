@@ -1,8 +1,11 @@
 #include "arch/x86_64/asm.h"
 #include "kernel/kprintf.h"
 
-#define PAGE_PRESENT    0X01
-#define PAGE_WRITABLE   0X02
+#define PAGE_PRESENT    0x01
+#define PAGE_WRITABLE   0x02
+#define PAGE_USER       0x04
+#define PAGE_NOCACHE    0x08
+#define PAGE_WASM       0x10  // Special flag for WASM pages
 #define PAGE_SIZE       4096
 
 #define ALIGN_4K __attribute__((aligned(PAGE_SIZE)))
@@ -59,7 +62,7 @@ uintptr_t virtual_to_physical(uintptr_t virtual_address) {
     return pt_entry[pt_index] & ~0xFFF; // Return the physical address without flags
 }
 
-void map_virtual_to_physical(uintptr_t virtual_address, uintptr_t physical_address) {
+void map_virtual_to_physical(uintptr_t virtual_address, uintptr_t physical_address, uint8_t flags) {
     uint64_t pml4_index = (virtual_address >> 39) & 0x1FF;
     uint64_t pdpt_index = (virtual_address >> 30) & 0x1FF;
     uint64_t pd_index = (virtual_address >> 21) & 0x1FF;
@@ -80,7 +83,7 @@ void map_virtual_to_physical(uintptr_t virtual_address, uintptr_t physical_addre
     }
 
     uint64_t* pt_entry = (uint64_t*) (pd_entry[pd_index] & ~0xFFF);
-    pt_entry[pt_index] = physical_address | PAGE_PRESENT | PAGE_WRITABLE;
+    pt_entry[pt_index] = physical_address | PAGE_PRESENT | flags;
 
     invlpg(virtual_address);
 }
