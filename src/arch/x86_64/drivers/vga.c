@@ -31,6 +31,17 @@ void clear_row(size_t row) {
     }
 }
 
+void vga_scroll() {
+    // Move all rows up by one
+    for (size_t row = 1; row < NUM_ROWS; row++) {
+        for (size_t col = 0; col < NUM_COLS; col++) {
+            buffer[col + NUM_COLS * (row - 1)] = buffer[col + NUM_COLS * row];
+        }
+    }
+    // Clear the last row
+    clear_row(NUM_ROWS - 1);
+}
+
 void vga_clear_screen() {
     for (size_t i = 0; i < NUM_ROWS; ++i) {
         clear_row(i);
@@ -51,15 +62,7 @@ void print_newline() {
         return;
     }
 
-    for (size_t row = 1; row < NUM_ROWS; row++) {
-        for (size_t col = 0; col < NUM_COLS; col++) {
-            struct Char character = buffer[col + NUM_COLS * row];
-            buffer[col + NUM_COLS * (row - 1)] = character;
-        }
-    }
-
-    clear_row(NUM_COLS - 1);
-
+    vga_scroll();
     vga_update_cursor();
 }
 
@@ -103,9 +106,7 @@ void vga_write_char(char character) {
         .color = color,
     };
     
-
     col++;
-
     vga_update_cursor();
 }
 
