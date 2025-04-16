@@ -9,6 +9,7 @@
 #include "kernel/mm/vmm.h"
 #include "arch/x86_64/interrupt/pit.h"
 #include "kernel/mm/kmalloc.h"
+#include "kernel/cli/cli.h"
 
 // Test different allocation sizes
 #define SMALL_SIZE 16
@@ -113,6 +114,6 @@ void kmain() {
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
     kprintf(INFO, "Welcome to ZenOS\n");
 
-    // Run heap tests
-    // heap_test();
+    // Start the command line interface
+    cli_run();
 }
