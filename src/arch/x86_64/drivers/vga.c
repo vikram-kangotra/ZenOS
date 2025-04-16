@@ -117,21 +117,21 @@ void vga_set_cursor(int x, int y) {
 void vga_update_cursor() {
     uint16_t position = row * NUM_COLS + col;
 
-    out(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
-    out(FB_DATA_PORT, (position >> 8) & 0xFF);
-    out(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
-    out(FB_DATA_PORT, position & 0xFF);
+    outb(FB_COMMAND_PORT, FB_HIGH_BYTE_COMMAND);
+    outb(FB_DATA_PORT, (position >> 8) & 0xFF);
+    outb(FB_COMMAND_PORT, FB_LOW_BYTE_COMMAND);
+    outb(FB_DATA_PORT, position & 0xFF);
 }
 
 void vga_enable_cursor(uint8_t cursor_start, uint8_t cursor_end) {
-    out(FB_COMMAND_PORT, 0x0A);
-    out(FB_DATA_PORT, cursor_start & 0x1F);
+    outb(FB_COMMAND_PORT, 0x0A);
+    outb(FB_DATA_PORT, cursor_start & 0x1F);
 
-    out(FB_COMMAND_PORT, 0x0B);
-    out(FB_DATA_PORT, cursor_end & 0x1F);
+    outb(FB_COMMAND_PORT, 0x0B);
+    outb(FB_DATA_PORT, cursor_end & 0x1F);
 }
 
 void vga_disable_cursor() {
-    out(FB_COMMAND_PORT, 0x0A);
-    out(FB_DATA_PORT, 0x20);
+    outb(FB_COMMAND_PORT, 0x0A);
+    outb(FB_DATA_PORT, 0x20);
 }

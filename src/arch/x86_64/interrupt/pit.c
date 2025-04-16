@@ -59,9 +59,9 @@ void pit_stop(void) {
     if (!_pit_initialized) return;
     
     // Set frequency to 0 to stop the timer
-    out(PIT_REG_COMMAND, 0x30); // Mode 0, binary
-    out(PIT_REG_COUNTER0, 0);
-    out(PIT_REG_COUNTER0, 0);
+    outb(PIT_REG_COMMAND, 0x30); // Mode 0, binary
+    outb(PIT_REG_COUNTER0, 0);
+    outb(PIT_REG_COUNTER0, 0);
     
     _pit_initialized = false;
 }
@@ -84,10 +84,10 @@ void pit_set_frequency(uint32_t frequency, uint8_t mode) {
     ocw = (ocw & ~PIT_OCW_MASK_RL) | PIT_OCW_RL_DATA;
     ocw = (ocw & ~PIT_OCW_MASK_COUNTER) | PIT_OCW_COUNTER_0;
     
-    out(PIT_REG_COMMAND, ocw);
+    outb(PIT_REG_COMMAND, ocw);
     
-    out(PIT_REG_COUNTER0, divisor & 0xFF);
-    out(PIT_REG_COUNTER0, (divisor >> 8) & 0xFF);
+    outb(PIT_REG_COUNTER0, divisor & 0xFF);
+    outb(PIT_REG_COUNTER0, (divisor >> 8) & 0xFF);
 
     _pit_ticks = 0;
     _pit_frequency = frequency;

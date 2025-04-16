@@ -28,6 +28,17 @@ void kprintf(enum LogLevel level, const char* format, ...) {
     for (const char* p = format; *p != '\0'; p++) {
         if (*p == '%' && *(p + 1) != '\0') {
             p++; // Skip '%'
+            
+            // Handle padding
+            int padding = 0;
+            if (*p == '0') {
+                p++;
+                while (*p >= '0' && *p <= '9') {
+                    padding = padding * 10 + (*p - '0');
+                    p++;
+                }
+            }
+            
             switch (*p) {
                 case 'c': {
                     char ch = va_arg(args, int);
@@ -53,6 +64,13 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         buffer[i++] = '0' + value % 10;
                         value /= 10;
                     } while (value);
+                    
+                    // Apply padding
+                    while (i < padding) {
+                        kputchar('0');
+                        padding--;
+                    }
+                    
                     while (i--) {
                         kputchar(buffer[i]);
                     }
@@ -66,6 +84,13 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         buffer[i++] = '0' + value % 10;
                         value /= 10;
                     } while (value);
+                    
+                    // Apply padding
+                    while (i < padding) {
+                        kputchar('0');
+                        padding--;
+                    }
+                    
                     while (i--) {
                         kputchar(buffer[i]);
                     }

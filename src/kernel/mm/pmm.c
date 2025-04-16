@@ -107,3 +107,21 @@ void buddy_free(void* ptr) {
         }
     }
 }
+
+uint64_t get_used_ram(void) {
+    uint64_t used = 0;
+    for (uint64_t i = 0; i <= MAX_ORDER; i++) {
+        Block* block = free_lists[i];
+        uint64_t block_size = (1ull << i);
+        uint64_t free_blocks = 0;
+        
+        while (block) {
+            free_blocks++;
+            block = block->next;
+        }
+        
+        uint64_t total_blocks = MEM_SIZE / block_size;
+        used += (total_blocks - free_blocks) * block_size;
+    }
+    return used >> 20; // Convert to MB
+}

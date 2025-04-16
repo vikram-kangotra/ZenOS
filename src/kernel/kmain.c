@@ -10,6 +10,7 @@
 #include "arch/x86_64/interrupt/pit.h"
 #include "kernel/mm/kmalloc.h"
 #include "kernel/cli/cli.h"
+#include "drivers/rtc.h"
 
 // Test different allocation sizes
 #define SMALL_SIZE 16
@@ -109,6 +110,9 @@ void kmain() {
     
     // Initialize PIT after IDT is set up
     init_pit(100);
+
+    // Initialize RTC
+    rtc_init();
 
     // Initialize memory management
     buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);

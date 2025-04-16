@@ -114,7 +114,7 @@ __attribute__((interrupt))
 void irq_keyboard_handler(struct InterruptStackFrame* frame) {
     (void) frame;
 
-    uint8_t scancode = in(KEYBOARD_DATA_PORT);
+    uint8_t scancode = inb(KEYBOARD_DATA_PORT);
     bool key_released = scancode & 0x80;
     scancode &= 0x7F;  // Remove release bit
 

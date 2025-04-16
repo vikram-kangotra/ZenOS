@@ -3,6 +3,11 @@
 #include "string.h"
 #include "stdbool.h"
 #include "drivers/vga.h"
+#include "kernel/mm/pmm.h"
+#include "kernel/mm/vmm.h"
+#include "arch/x86_64/interrupt/pit.h"
+#include "multiboot2/multiboot2_parser.h"
+#include "drivers/rtc.h"
 
 #define CLI_BUFFER_SIZE 256
 #define CLI_PROMPT "ZenOS> "
@@ -18,9 +23,13 @@ struct Command {
 static void cmd_help(const char* args) {
     (void)args;
     kprintf(CLI, "Available commands:\n");
-    kprintf(CLI, "  help    - Show this help message\n");
-    kprintf(CLI, "  clear   - Clear the screen\n");
-    kprintf(CLI, "  echo    - Print arguments\n");
+    kprintf(CLI, "  help     - Show this help message\n");
+    kprintf(CLI, "  clear    - Clear the screen\n");
+    kprintf(CLI, "  echo     - Print arguments\n");
+    kprintf(CLI, "  meminfo  - Show memory information\n");
+    kprintf(CLI, "  sysinfo  - Show system information\n");
+    kprintf(CLI, "  time     - Show current system time\n");
+    kprintf(CLI, "  uptime   - Show system uptime\n");
 }
 
 static void cmd_clear(const char* args) {
@@ -37,11 +46,63 @@ static void cmd_echo(const char* args) {
     }
 }
 
+static void cmd_meminfo(const char* args) {
+    (void)args;
+    uint64_t total_ram = get_total_ram();
+    uint64_t used_ram = get_used_ram();
+    uint64_t free_ram = total_ram - used_ram;
+    
+    kprintf(CLI, "Memory Information:\n");
+    kprintf(CLI, "  Total RAM: %d KB\n", total_ram);
+    kprintf(CLI, "  Used RAM:  %d KB\n", used_ram);
+    kprintf(CLI, "  Free RAM:  %d KB\n", free_ram);
+}
+
+static void cmd_sysinfo(const char* args) {
+    (void)args;
+    kprintf(CLI, "System Information:\n");
+    kprintf(CLI, "  Architecture: x86_64\n");
+    kprintf(CLI, "  Kernel: ZenOS\n");
+    kprintf(CLI, "  Memory: %d KB\n", get_total_ram());
+}
+
+static void cmd_time(const char* args) {
+    (void)args;
+    struct DateTime dt;
+    rtc_get_time(&dt);
+    
+    // Add 2000 to year since RTC returns years since 2000
+    kprintf(CLI, "Current time: %02d/%02d/%04d %02d:%02d:%02d\n", 
+            dt.day, dt.month, dt.year + 2000, 
+            dt.hours, dt.minutes, dt.seconds);
+}
+
+static void cmd_uptime(const char* args) {
+    (void)args;
+    uint32_t ticks = pit_get_ticks();
+    uint32_t ms = pit_ticks_to_ms(ticks);
+    uint32_t seconds = ms / 1000;
+    uint32_t minutes = seconds / 60;
+    uint32_t hours = minutes / 60;
+    uint32_t days = hours / 24;
+    
+    kprintf(CLI, "System uptime: ");
+    if (days > 0) {
+        kprintf(CLI, "%d day%s, ", days, days == 1 ? "" : "s");
+    }
+    kprintf(CLI, "%02d:%02d:%02d\n", 
+            hours % 24, minutes % 60, seconds % 60);
+}
+
 // Command table
 static const struct Command commands[] = {
     {"help", cmd_help, "Show help message"},
     {"clear", cmd_clear, "Clear the screen"},
     {"echo", cmd_echo, "Print arguments"},
+    {"meminfo", cmd_meminfo, "Show memory information"},
+    {"sysinfo", cmd_sysinfo, "Show system information"},
+    {"time", cmd_time, "Show current system time"},
+    {"uptime", cmd_uptime, "Show system uptime"},
     {NULL, NULL, NULL}  // End marker
 };
 
