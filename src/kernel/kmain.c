@@ -12,6 +12,7 @@
 #include "kernel/cli/cli.h"
 #include "drivers/rtc.h"
 #include "kernel/fs/vfs.h"
+#include "string.h"
 
 // Test different allocation sizes
 #define SMALL_SIZE 16

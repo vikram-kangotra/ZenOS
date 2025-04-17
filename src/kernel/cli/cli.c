@@ -11,7 +11,6 @@
 #include "kernel/fs/vfs.h"
 
 #define CLI_BUFFER_SIZE 256
-#define CLI_PROMPT "ZenOS> "
 
 // Command structure
 struct Command {
@@ -62,7 +61,6 @@ static void cmd_help(const char* args) {
 static void cmd_clear(const char* args) {
     (void)args;
     vga_clear_screen();
-    kprintf(CLI, CLI_PROMPT);
 }
 
 static void cmd_echo(const char* args) {
@@ -254,6 +252,41 @@ static void process_command(const char* line) {
     kprintf(CLI, "Type 'help' for a list of available commands\n");
 }
 
+// Function to get the current prompt
+static void get_prompt(char* buffer, size_t size) {
+    // Get current working directory
+    struct vfs_node* cwd = vfs_getcwd();
+    if (!cwd) {
+        strncpy(buffer, "/", size);
+        strncat(buffer, "> ", size);
+        return;
+    }
+
+    // Start with empty string
+    buffer[0] = '\0';
+    
+    // Build path string by traversing up the tree
+    struct vfs_node* current = cwd;
+    char temp[256] = "";
+    
+    while (current && current->name[0] != '\0') {
+        strncpy(temp, buffer, sizeof(temp));
+        buffer[0] = '/';
+        buffer[1] = '\0';
+        strncat(buffer, current->name, size);
+        strncat(buffer, temp, size);
+        current = current->parent;
+    }
+
+    // If buffer is empty (root directory), just show /
+    if (buffer[0] == '\0') {
+        strncpy(buffer, "", size);
+    }
+
+    // Add the prompt suffix
+    strncat(buffer, "> ", size);
+}
+
 // Handle special keys
 static bool handle_special_keys(char c) {
     switch (c) {
@@ -268,7 +301,10 @@ static bool handle_special_keys(char c) {
             _input_buffer[_buffer_pos] = '\0';
             process_command(_input_buffer);
             _buffer_pos = 0;
-            kprintf(CLI, CLI_PROMPT);
+            // Update prompt with current directory
+            char prompt[256];
+            get_prompt(prompt, sizeof(prompt));
+            kprintf(CLI, "%s", prompt);
             return true;
         default:
             return false;
@@ -277,8 +313,11 @@ static bool handle_special_keys(char c) {
 
 // Main CLI loop
 void cli_run(void) {
-    kprintf(CLI, "\nWelcome to ZenOS CLI\n");
-    kprintf(CLI, CLI_PROMPT);
+    kprintf(CLI, "\nWelcome to ZenOS\n");
+    // Show initial prompt with current directory
+    char prompt[256];
+    get_prompt(prompt, sizeof(prompt));
+    kprintf(CLI, "%s", prompt);
 
     while (true) {
         char c = keyboard_read_blocking();

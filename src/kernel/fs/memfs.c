@@ -113,7 +113,7 @@ struct vfs_node* memfs_create_node(const char* name, uint32_t flags) {
 
 // Initialize memory filesystem
 void memfs_init(void) {
-    root_node = memfs_create_node("/", FS_DIRECTORY);
+    root_node = memfs_create_node("", FS_DIRECTORY);
     if (!root_node) return;
     
     // Create some initial directories
