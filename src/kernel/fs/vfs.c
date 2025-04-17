@@ -17,7 +17,14 @@ void vfs_init(void) {
 
 // Create a new VFS node
 struct vfs_node* vfs_create_node(const char* name, uint32_t flags) {
-    return memfs_create_node(name, flags);
+    struct vfs_node *node = memfs_create_node(name, flags);
+
+    struct vfs_node *parent = vfs_getcwd();
+    node->parent = parent;
+    node->next = parent->children;
+    parent->children = node;
+
+    return node;
 }
 
 // Destroy a VFS node

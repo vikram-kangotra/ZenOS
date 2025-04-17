@@ -157,11 +157,6 @@ static void cmd_mkdir(const char* args) {
         kprintf(ERROR, "Failed to create directory\n");
         return;
     }
-    
-    struct vfs_node* parent = vfs_getcwd();
-    dir->parent = parent;
-    dir->next = parent->children;
-    parent->children = dir;
 }
 
 static void cmd_touch(const char* args) {
@@ -175,11 +170,6 @@ static void cmd_touch(const char* args) {
         kprintf(ERROR, "Failed to create file\n");
         return;
     }
-    
-    struct vfs_node* parent = vfs_getcwd();
-    file->parent = parent;
-    file->next = parent->children;
-    parent->children = file;
 }
 
 static void cmd_cat(const char* args) {
@@ -257,7 +247,6 @@ static void get_prompt(char* buffer, size_t size) {
     // Get current working directory
     struct vfs_node* cwd = vfs_getcwd();
     if (!cwd) {
-        strncpy(buffer, "/", size);
         strncat(buffer, "> ", size);
         return;
     }
