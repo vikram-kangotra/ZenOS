@@ -51,7 +51,7 @@ struct vfs_node* vfs_open(const char* path, uint32_t flags) {
     
     // Handle absolute paths
     struct vfs_node* current = (*path == '/') ? memfs_get_root() : current_dir;
-    
+
     // Skip leading slash
     if (*path == '/') path++;
     
@@ -59,7 +59,7 @@ struct vfs_node* vfs_open(const char* path, uint32_t flags) {
     char* path_copy = strdup(path);
     char* token = strtok(path_copy, "/");
     
-    while (token) {
+    while (token && token[0] != '\0') {
         current = current->finddir(current, token);
         if (!current) {
             kfree(path_copy);
