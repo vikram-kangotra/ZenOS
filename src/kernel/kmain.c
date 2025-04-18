@@ -117,7 +117,7 @@ void kmain() {
     rtc_init();
 
     // Initialize memory management
-    buddy_init((uintptr_t) &KERNEL_END, get_total_ram() << 10);
+    buddy_init((uintptr_t) &KERNEL_END, get_total_ram());
     
     // Initialize filesystem
     vfs_init();
