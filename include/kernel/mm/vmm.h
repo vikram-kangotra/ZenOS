@@ -2,6 +2,8 @@
 
 #include "kernel/mm/pmm.h"
 
+#define PAGE_SIZE 4096
+
 // Page protection flags
 #define PAGE_PRESENT    0x01
 #define PAGE_WRITABLE   0x02

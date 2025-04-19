@@ -302,6 +302,8 @@ static bool handle_special_keys(char c) {
 
 // Main CLI loop
 void cli_run(void) {
+    cmd_clear(NULL);
+
     kprintf(CLI, "\nWelcome to ZenOS\n");
     // Show initial prompt with current directory
     char prompt[256];
