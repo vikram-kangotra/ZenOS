@@ -8,7 +8,8 @@
 #include "arch/x86_64/interrupt/pit.h"
 #include "multiboot2/multiboot2_parser.h"
 #include "drivers/rtc.h"
-#include "kernel/fs/vfs.h"
+#include "fs/vfs.h"
+#include "fs/fat32.h"
 
 #define CLI_BUFFER_SIZE 256
 
@@ -121,6 +122,7 @@ static void cmd_uptime(const char* args) {
 
 static void cmd_ls(const char* args) {
     (void)args;
+    
     struct vfs_node* dir = vfs_getcwd();
     if (!dir) {
         kprintf(ERROR, "Failed to get current directory\n");
@@ -129,9 +131,10 @@ static void cmd_ls(const char* args) {
     
     uint32_t index = 0;
     struct vfs_node* entry;
+    
     while ((entry = vfs_readdir(dir, index++)) != NULL) {
-        const char* type = (entry->flags & FS_DIRECTORY) ? "d" : "-";
-        kprintf(CLI, "%s %s\n", type, entry->name);
+        kprintf(CLI, "%s\n", entry->name);
+        vfs_destroy_node(entry);
     }
 }
 
@@ -142,7 +145,7 @@ static void cmd_cd(const char* args) {
     }
     
     if (!vfs_chdir(args)) {
-        kprintf(ERROR, "Failed to change directory\n");
+        kprintf(ERROR, "Failed to change directory to %s\n", args);
     }
 }
 
@@ -152,11 +155,43 @@ static void cmd_mkdir(const char* args) {
         return;
     }
     
-    struct vfs_node* dir = vfs_create_node(args, FS_DIRECTORY);
-    if (!dir) {
-        kprintf(ERROR, "Failed to create directory\n");
+    // Get the block device
+    struct block_device* blk_dev = block_device_get("ata0");
+    if (!blk_dev) {
+        kprintf(ERROR, "No block device available\n");
         return;
     }
+    
+    // Handle relative path
+    char full_path[256];
+    if (args[0] != '/') {
+        // Get current directory
+        struct vfs_node* cwd = vfs_getcwd();
+        if (!cwd) {
+            kprintf(ERROR, "Failed to get current directory\n");
+            return;
+        }
+        
+        // Build full path
+        if (cwd->name[0] == '\0' || strcmp(cwd->name, "/") == 0) {
+            strncpy(full_path, "/", sizeof(full_path));
+            strncat(full_path, args, sizeof(full_path) - 1);
+        } else {
+            strncpy(full_path, cwd->name, sizeof(full_path));
+            strncat(full_path, "/", sizeof(full_path) - 1);
+            strncat(full_path, args, sizeof(full_path) - 1);
+        }
+    } else {
+        strncpy(full_path, args, sizeof(full_path));
+    }
+    
+    // Create the directory using FAT32
+    if (!fat32_mkdir(blk_dev, full_path)) {
+        kprintf(ERROR, "Failed to create directory %s\n", args);
+        return;
+    }
+    
+    kprintf(CLI, "Directory %s created\n", args);
 }
 
 static void cmd_touch(const char* args) {
@@ -167,9 +202,11 @@ static void cmd_touch(const char* args) {
     
     struct vfs_node* file = vfs_create_node(args, FS_FILE);
     if (!file) {
-        kprintf(ERROR, "Failed to create file\n");
+        kprintf(ERROR, "Failed to create file %s\n", args);
         return;
     }
+    
+    vfs_destroy_node(file);
 }
 
 static void cmd_cat(const char* args) {
@@ -178,13 +215,13 @@ static void cmd_cat(const char* args) {
         return;
     }
     
-    struct vfs_node* file = vfs_open(args, FS_READ);
+    struct vfs_node* file = vfs_open(args, 0);
     if (!file) {
-        kprintf(ERROR, "Failed to open file\n");
+        kprintf(ERROR, "Failed to open file %s\n", args);
         return;
     }
     
-    uint8_t buffer[1024];
+    uint8_t buffer[512];
     uint32_t bytes_read;
     while ((bytes_read = vfs_read(file, 0, sizeof(buffer), buffer)) > 0) {
         for (uint32_t i = 0; i < bytes_read; i++) {
@@ -244,6 +281,9 @@ static void process_command(const char* line) {
 
 // Function to get the current prompt
 static void get_prompt(char* buffer, size_t size) {
+    // Start with empty string
+    buffer[0] = '\0';
+
     // Get current working directory
     struct vfs_node* cwd = vfs_getcwd();
     if (!cwd) {
@@ -251,13 +291,16 @@ static void get_prompt(char* buffer, size_t size) {
         return;
     }
 
-    // Start with empty string
-    buffer[0] = '\0';
-    
+    // Check if we're at root (name is empty or "/")
+    if (!cwd->parent || cwd->name[0] == '\0') {
+        strncpy(buffer, "> ", size);
+        return;
+    }
+
     // Build path string by traversing up the tree
-    struct vfs_node* current = cwd;
     char temp[256] = "";
-    
+    struct vfs_node* current = cwd;
+
     while (current && current->name[0] != '\0') {
         strncpy(temp, buffer, sizeof(temp));
         buffer[0] = '/';
@@ -265,11 +308,6 @@ static void get_prompt(char* buffer, size_t size) {
         strncat(buffer, current->name, size);
         strncat(buffer, temp, size);
         current = current->parent;
-    }
-
-    // If buffer is empty (root directory), just show /
-    if (buffer[0] == '\0') {
-        strncpy(buffer, "", size);
     }
 
     // Add the prompt suffix
@@ -302,7 +340,6 @@ static bool handle_special_keys(char c) {
 
 // Main CLI loop
 void cli_run(void) {
-    cmd_clear(NULL);
 
     kprintf(CLI, "\nWelcome to ZenOS\n");
     // Show initial prompt with current directory

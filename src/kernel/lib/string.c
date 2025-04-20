@@ -73,6 +73,17 @@ char *strchr(const char *s, int c) {
     return (char *)s;
 }
 
+char *strrchr(const char *s, int c) {
+    const char *last = NULL;
+    while (*s) {
+        if (*s == c) {
+            last = s;
+        }
+        s++;
+    }
+    return (char *)last;
+}
+
 int strcmp(const char *s1, const char *s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
@@ -82,14 +93,17 @@ int strcmp(const char *s1, const char *s2) {
 }
 
 int strncmp(const char *s1, const char *s2, size_t n) {
-    while (n-- > 0 && *s1 == *s2) {
+    while (n-- > 0) {
+        if (*s1 != *s2) {
+            return *(unsigned char *)s1 - *(unsigned char *)s2;
+        }
         if (*s1 == '\0') {
             return 0;
         }
         s1++;
         s2++;
     }
-    return *(unsigned char *)s1 - *(unsigned char *)s2;
+    return 0;
 }
 
 char *strcat(char *dest, const char *src) {

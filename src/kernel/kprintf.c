@@ -38,6 +38,17 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                     p++;
                 }
             }
+
+            // Handle String Max Length
+            int str_max_length = -1;
+            if (*p == '.') {
+                p++;
+                str_max_length = 0;
+                while (*p >= '0' && *p <= '9') {
+                    str_max_length = str_max_length * 10 + (*p - '0');
+                    p++;
+                }
+            }
             
             switch (*p) {
                 case 'c': {
@@ -47,8 +58,9 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                 }
                 case 's': {
                     const char* str = va_arg(args, const char*);
-                    while (*str) {
+                    while (*str && str_max_length != 0) {
                         kputchar(*str++);
+                        str_max_length--;
                     }
                     break;
                 }

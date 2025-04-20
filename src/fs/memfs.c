@@ -1,4 +1,4 @@
-#include "kernel/fs/vfs.h"
+#include "fs/vfs.h"
 #include "kernel/mm/kmalloc.h"
 #include "string.h"
 

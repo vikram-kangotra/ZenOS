@@ -11,7 +11,7 @@
 #include "kernel/mm/kmalloc.h"
 #include "kernel/cli/cli.h"
 #include "drivers/rtc.h"
-#include "kernel/fs/vfs.h"
+#include "fs/vfs.h"
 #include "string.h"
 
 void kmain() {
