@@ -17,43 +17,43 @@ long_mode_start:
     hlt
     jmp .halt
 
-extern lgdt
+global lgdt
 lgdt:
     lgdt [gdt64.Pointer]
     ret
 
-extern ltr
+global ltr
 ltr:
     mov di, gdt64.Tss
     ltr di
     ret
 
-extern lidt
+global lidt
 lidt:
     lidt [rdi]
     ret
 
-extern cli
+global cli
 cli:
     cli
     ret
 
-extern sti
+global sti
 sti:
     sti
     ret
 
-extern invlpg
+global invlpg
 invlpg:
     invlpg [rdi]
     ret
 
-extern get_current_pml4
+global get_current_pml4
 get_current_pml4:
     mov rax, cr3
     ret
 
-extern get_faulting_address
+global get_faulting_address
 get_faulting_address:
     mov rax, cr2
     ret
@@ -117,12 +117,12 @@ setup_page_tables:
     ret
 
 section .data
-extern multiboot_addr
+global multiboot_addr
 multiboot_addr: dd 0
 
 section .bss
 align 4096
-extern pml4
+global pml4
 pml4:
     resb 4096
 pdpt:
@@ -131,7 +131,7 @@ pd:
     resb 4096
 
 section .bss
-extern tss_segment
+global tss_segment
 tss_segment:
     resd 1 ; reserved 
     resq 3 ; resp
@@ -154,7 +154,7 @@ LONG_MODE     equ 1 << 5
 
 section .rodata
 align 8
-extern gdt64
+global gdt64
 gdt64:
     .Null: equ $ - gdt64
         dq 0
