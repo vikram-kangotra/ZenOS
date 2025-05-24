@@ -1,5 +1,4 @@
-#ifndef ATA_H
-#define ATA_H
+#pragma once
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -8,6 +7,7 @@
 #define ATA_CMD_READ_SECTORS    0x20
 #define ATA_CMD_WRITE_SECTORS   0x30
 #define ATA_CMD_IDENTIFY       0xEC
+#define ATA_CMD_FLUSH_CACHE    0xE7
 
 // ATA Status Register Bits
 #define ATA_SR_BSY     0x80    // Busy
@@ -66,9 +66,8 @@ struct ata_device {
 };
 
 // Function Declarations
-void ata_init(void);
+bool ata_init(void);
 bool ata_read_sectors(struct ata_device* dev, uint32_t lba, uint8_t count, void* buffer);
 bool ata_write_sectors(struct ata_device* dev, uint32_t lba, uint8_t count, const void* buffer);
 struct ata_device* ata_get_device(uint8_t bus, uint8_t drive);
-
-#endif // ATA_H 
+void run_ata_tests(void); 

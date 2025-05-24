@@ -12,6 +12,7 @@
 #include "kernel/cli/cli.h"
 #include "drivers/rtc.h"
 #include "fs/vfs.h"
+#include "drivers/ata.h"
 #include "string.h"
 
 void kmain() {
@@ -43,6 +44,9 @@ void kmain() {
     // Initialize filesystem
     vfs_init();
 
+    // Run ATA tests
+    kprintf(INFO, "\nRunning ATA driver tests...\n");
+    run_ata_tests();
     
     kprintf(INFO, "Welcome to ZenOS\n");
 
