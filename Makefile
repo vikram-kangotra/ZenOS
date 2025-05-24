@@ -49,14 +49,14 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 # Create FAT32 disk image
 $(DISK_IMG):
 	@mkdir -p $(@D)
-	# Create a larger disk (128MB) to ensure proper FAT32 operation
-	qemu-img create -f raw $@ 128M
-	# Format with specific cluster size (4KB) and verify
-	mkfs.fat -F 32 -n "ZENOS" -s 8 -S 512 $@
+	# Create a 512MB disk to ensure proper FAT32 operation
+	dd if=/dev/zero of=$@ bs=1M count=512
+	# Format with specific parameters for FAT32
+	mkfs.fat -F 32 -S 512 -s 4 -R 32 -f 2 -n "ZENOS" $@
 	# Verify filesystem
-	fsck.fat -n $@
+	fsck.fat -v $@
 	# Create directories and verify
-	mmd -i $@ ::/dev ::/proc ::/bin ::/etc ::/lib ::/mnt ::/opt ::/root ::/run ::/sbin ::/srv ::/tmp ::/usr ::/var
+	mmd -i $@ ::/dev ::/proc ::/bin ::/etc ::/lib ::/mnt ::/opt ::/root ::/tmp
 	# List directory contents to verify
 	mdir -i $@ ::
 	# Print filesystem info

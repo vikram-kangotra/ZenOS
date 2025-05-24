@@ -32,6 +32,7 @@ static void cmd_cd(const char* args);
 static void cmd_mkdir(const char* args);
 static void cmd_touch(const char* args);
 static void cmd_cat(const char* args);
+static void cmd_shutdown(const char* args);
 
 // Command table
 static const struct Command commands[] = {
@@ -47,6 +48,7 @@ static const struct Command commands[] = {
     {"mkdir", cmd_mkdir, "Create directory"},
     {"touch", cmd_touch, "Create empty file"},
     {"cat", cmd_cat, "Display file contents"},
+    {"shutdown", cmd_shutdown, "Shutdown the system"},
     {NULL, NULL, NULL}  // End marker
 };
 
@@ -230,6 +232,23 @@ static void cmd_cat(const char* args) {
     }
     
     vfs_close(file);
+}
+
+static void cmd_shutdown(const char* args) {
+    (void)args;
+    kprintf(INFO, "Shutting down system...\n");
+    
+    // Unmount filesystems
+    vfs_shutdown();
+    
+    // Stop the PIT
+    pit_stop();
+    
+    // Disable interrupts
+    asm volatile("cli");
+    
+    // Halt the CPU
+    asm volatile("hlt");
 }
 
 // CLI state

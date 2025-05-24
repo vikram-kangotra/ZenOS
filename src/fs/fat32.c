@@ -5,6 +5,13 @@
 #include "kernel/mm/kmalloc.h"
 #include "kernel/kprintf.h"
 
+char toupper(char c) {
+    if (c >= 'a' && c <= 'z') {
+        return c - 32;
+    }
+    return c;
+}
+
 // Private data structure for FAT32 filesystem
 struct fat32_private {
     struct block_device* dev;
@@ -59,6 +66,53 @@ static bool read_cluster(struct fat32_private* priv, uint32_t cluster, void* buf
 static bool write_cluster(struct fat32_private* priv, uint32_t cluster, const void* buffer) {
     uint32_t sector = cluster_to_lba(priv, cluster);
     return block_device_write(priv->dev, sector, priv->boot_sector.sectors_per_cluster, buffer);
+}
+
+// Helper function to convert name to 8.3 format
+static void convert_to_83_name(const char* name, char* name83) {
+    memset(name83, ' ', 11);
+    
+    // Find the last dot for extension
+    const char* dot = strrchr(name, '.');
+    const char* ext = dot ? dot + 1 : NULL;
+    size_t name_len = dot ? (size_t)(dot - name) : strlen(name);
+    
+    // Convert name part (up to 8 chars)
+    size_t i;
+    for (i = 0; i < name_len && i < 8; i++) {
+        char c = toupper((unsigned char)name[i]);
+        // Skip invalid characters
+        if (c == ' ' || c == '.' || c == '/' || c == '\\' || c == ':' || 
+            c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+            continue;
+        }
+        name83[i] = c;
+    }
+    
+    // Convert extension part (up to 3 chars)
+    if (ext) {
+        for (i = 0; i < 3 && ext[i]; i++) {
+            char c = toupper((unsigned char)ext[i]);
+            // Skip invalid characters
+            if (c == ' ' || c == '.' || c == '/' || c == '\\' || c == ':' || 
+                c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+                continue;
+            }
+            name83[8 + i] = c;
+        }
+    }
+}
+
+// Helper to write a FAT sector to all FATs
+static bool write_fat_sector_all(struct fat32_private* priv, uint32_t fat_sector_offset, const void* buffer) {
+    bool ok = true;
+    for (uint8_t fat = 0; fat < priv->boot_sector.fat_count; fat++) {
+        uint32_t sector = priv->fat_start + fat * priv->boot_sector.sectors_per_fat_32 + fat_sector_offset;
+        if (!block_device_write(priv->dev, sector, 1, buffer)) {
+            ok = false;
+        }
+    }
+    return ok;
 }
 
 // Initialize FAT32 Filesystem
@@ -358,6 +412,11 @@ uint32_t fat32_write(struct fat32_file* file, const void* buffer, uint32_t size)
         }
     }
 
+    // Sync the device after write
+    if (bytes_written > 0) {
+        block_device_sync(fs_private->dev);
+    }
+
     return bytes_written;
 }
 
@@ -516,8 +575,7 @@ bool fat32_mkdir(struct block_device* dev, const char* path) {
     
     // Convert name to 8.3 format
     char name83[11];
-    memset(name83, ' ', 11);
-    strncpy(name83, dir_name, 8);
+    convert_to_83_name(dir_name, name83);
     
     // Copy name to entry
     memcpy(entry.name, name83, 11);
@@ -542,10 +600,24 @@ bool fat32_mkdir(struct block_device* dev, const char* path) {
     
     // Mark cluster as used
     uint32_t fat_offset = new_cluster * 4;
-    uint32_t fat_sector = fs_private->fat_start + (fat_offset / fs_private->boot_sector.bytes_per_sector);
-    uint32_t fat_value = 0x0FFFFFFF;  // End of chain
-    if (!block_device_write(dev, fat_sector, 1, &fat_value)) {
-        kprintf(ERROR, "fat32_mkdir: Failed to mark cluster as used\n");
+    uint32_t fat_sector_offset = (fat_offset / fs_private->boot_sector.bytes_per_sector);
+    uint32_t sector_offset = fat_offset % fs_private->boot_sector.bytes_per_sector;
+    
+    // Update FAT cache in memory
+    fs_private->fat_cache[new_cluster] = 0x0FFFFFFF; // End of chain
+    
+    // Write to all FATs on disk
+    uint8_t sector_buf[fs_private->boot_sector.bytes_per_sector];
+    // Read the sector first (to preserve other entries)
+    if (!block_device_read(dev, fs_private->fat_start + fat_sector_offset, 1, sector_buf)) {
+        kprintf(ERROR, "fat32_mkdir: Failed to read FAT sector\n");
+        fat32_close(parent);
+        kfree(path_copy);
+        return false;
+    }
+    *(uint32_t*)(sector_buf + sector_offset) = 0x0FFFFFFF; // End of chain
+    if (!write_fat_sector_all(fs_private, fat_sector_offset, sector_buf)) {
+        kprintf(ERROR, "fat32_mkdir: Failed to mark cluster as used in all FATs\n");
         fat32_close(parent);
         kfree(path_copy);
         return false;
@@ -622,17 +694,17 @@ bool fat32_mkdir(struct block_device* dev, const char* path) {
     }
     
     if (i >= entries_per_sector) {
-        kprintf(ERROR, "fat32_mkdir: No empty entries in parent directory\n");
+        kprintf(ERROR, "fat32_mkdir: No free entries in parent directory\n");
         kfree(parent_sector);
         fat32_close(parent);
         kfree(path_copy);
         return false;
     }
     
-    // Write entry
-    memcpy(&entries[i], &entry, sizeof(entry));
+    // Write new entry
+    memcpy(&entries[i], &entry, sizeof(struct fat32_dir_entry));
     if (!write_cluster(fs_private, parent->current_cluster, parent_sector)) {
-        kprintf(ERROR, "fat32_mkdir: Failed to write directory entry\n");
+        kprintf(ERROR, "fat32_mkdir: Failed to write parent directory\n");
         kfree(parent_sector);
         fat32_close(parent);
         kfree(path_copy);
@@ -642,6 +714,10 @@ bool fat32_mkdir(struct block_device* dev, const char* path) {
     kfree(parent_sector);
     fat32_close(parent);
     kfree(path_copy);
+
+    // Sync the device after directory creation
+    block_device_sync(dev);
+    
     return true;
 }
 
@@ -875,34 +951,37 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
     file->position = 0;
     file->current_cluster = file->first_cluster;
     
+    // Convert search name to 8.3 format
+    char search_name83[11];
+    convert_to_83_name(name, search_name83);
+    
     struct fat32_dir_entry entry;
     while (fat32_readdir(file, &entry)) {
-        // Convert 8.3 name to readable format
-        char entry_name[13];
-        memset(entry_name, 0, sizeof(entry_name));
-        strncpy(entry_name, (char*)entry.name, 8);
-        entry_name[8] = '\0';
-        
-        // Trim trailing spaces
-        char* end = entry_name + strlen(entry_name) - 1;
-        while (end >= entry_name && *end == ' ') {
-            *end-- = '\0';
-        }
-        
-        // Add extension if present
-        if (entry.name[8] != ' ') {
-            strcat(entry_name, ".");
-            strncat(entry_name, (char*)entry.name + 8, 3);
+        // Compare names in 8.3 format
+        if (memcmp(entry.name, search_name83, 11) == 0) {
+            // Convert 8.3 name to readable format for display
+            char entry_name[13];
+            memset(entry_name, 0, sizeof(entry_name));
+            strncpy(entry_name, (char*)entry.name, 8);
+            entry_name[8] = '\0';
             
-            // Trim trailing spaces from extension
-            end = entry_name + strlen(entry_name) - 1;
+            // Trim trailing spaces
+            char* end = entry_name + strlen(entry_name) - 1;
             while (end >= entry_name && *end == ' ') {
                 *end-- = '\0';
             }
-        }
-        
-        
-        if (strcmp(entry_name, name) == 0) {
+            
+            // Add extension if present
+            if (entry.name[8] != ' ') {
+                strcat(entry_name, ".");
+                strncat(entry_name, (char*)entry.name + 8, 3);
+                
+                // Trim trailing spaces from extension
+                end = entry_name + strlen(entry_name) - 1;
+                while (end >= entry_name && *end == ' ') {
+                    *end-- = '\0';
+                }
+            }
             
             struct vfs_node* result = kmalloc(sizeof(struct vfs_node));
             if (!result) {
@@ -992,4 +1071,40 @@ struct vfs_node* fat32_create_node(const char* name, uint32_t flags) {
 // Find directory entry
 struct vfs_node* fat32_finddir(struct vfs_node* node, const char* name) {
     return fat32_vfs_finddir(node, name);
+}
+
+// Unmount FAT32 filesystem
+bool fat32_unmount(void) {
+    if (!fs_private) {
+        kprintf(ERROR, "fat32_unmount: No filesystem mounted\n");
+        return false;
+    }
+    
+    kprintf(INFO, "Unmounting FAT32 filesystem...\n");
+    
+    // Flush FAT cache to disk
+    for (uint32_t i = 0; i < fs_private->boot_sector.sectors_per_fat_32; i++) {
+        uint8_t* sector_buffer = (uint8_t*)fs_private->fat_cache + (i * fs_private->boot_sector.bytes_per_sector);
+        if (!write_fat_sector_all(fs_private, i, sector_buffer)) {
+            kprintf(ERROR, "fat32_unmount: Failed to write FAT sector %d to all FATs\n", i);
+            return false;
+        }
+    }
+    
+    // Clear dirty bit in boot sector
+    fs_private->boot_sector.ext_flags &= ~0x80;  // Clear dirty bit
+    if (!block_device_write(fs_private->dev, 0, 1, &fs_private->boot_sector)) {
+        kprintf(ERROR, "fat32_unmount: Failed to write boot sector\n");
+        return false;
+    }
+    
+    // Free FAT cache
+    kfree(fs_private->fat_cache);
+    
+    // Free private data
+    kfree(fs_private);
+    fs_private = NULL;
+    
+    kprintf(INFO, "FAT32 filesystem unmounted successfully\n");
+    return true;
 }

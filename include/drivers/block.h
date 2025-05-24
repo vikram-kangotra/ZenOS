@@ -10,6 +10,7 @@ struct block_device_ops {
     bool (*write)(void* dev, uint64_t lba, uint32_t count, const void* buffer);
     uint32_t (*get_sector_size)(void* dev);
     uint64_t (*get_sector_count)(void* dev);
+    bool (*sync)(void* dev);
 };
 
 // Block device structure
@@ -27,5 +28,6 @@ bool block_device_read(struct block_device* dev, uint64_t lba, uint32_t count, v
 bool block_device_write(struct block_device* dev, uint64_t lba, uint32_t count, const void* buffer);
 uint32_t block_device_get_sector_size(struct block_device* dev);
 uint64_t block_device_get_sector_count(struct block_device* dev);
+bool block_device_sync(struct block_device* dev);
 
 #endif // BLOCK_H 

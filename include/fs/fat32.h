@@ -77,6 +77,7 @@ bool fat32_readdir(struct fat32_file* dir, struct fat32_dir_entry* entry);
 bool fat32_mkdir(struct block_device* dev, const char* path);
 bool fat32_rmdir(struct block_device* dev, const char* path);
 bool fat32_unlink(struct block_device* dev, const char* path);
+bool fat32_unmount(void);
 
 // VFS Interface Functions
 struct vfs_node* fat32_get_root(void);

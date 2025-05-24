@@ -42,11 +42,17 @@ static uint64_t ata_block_get_sector_count(void* dev) {
     return priv->ata_dev->sectors;
 }
 
+static bool ata_block_sync(void* dev) {
+    struct ata_block_private* priv = (struct ata_block_private*)dev;
+    return ata_flush_cache(priv->ata_dev);
+}
+
 static const struct block_device_ops ata_block_ops = {
     .read = ata_block_read,
     .write = ata_block_write,
     .get_sector_size = ata_block_get_sector_size,
     .get_sector_count = ata_block_get_sector_count,
+    .sync = ata_block_sync,
 };
 
 // Initialize ATA block devices

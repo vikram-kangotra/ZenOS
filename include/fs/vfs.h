@@ -53,6 +53,7 @@ struct vfs_node {
 
 // Filesystem operations
 void vfs_init(void);
+void vfs_shutdown(void);
 struct vfs_node* vfs_create_node(const char* name, uint32_t flags);
 void vfs_destroy_node(struct vfs_node* node);
 struct vfs_node* vfs_mount(const char* path, struct vfs_node* node);

@@ -269,6 +269,31 @@ bool ata_write_sectors(struct ata_device* dev, uint32_t lba, uint8_t count, cons
     return true;
 }
 
+// Flush drive cache
+bool ata_flush_cache(struct ata_device* dev) {
+    if (!dev || !dev->exists) {
+        kprintf(ERROR, "ATA device does not exist\n");
+        return false;
+    }
+
+    // Wait for drive to be ready
+    if (!ata_wait_ready(dev)) {
+        kprintf(ERROR, "ATA flush: Drive not ready\n");
+        return false;
+    }
+
+    // Send flush cache command
+    outb(dev->base_port + ATA_REG_COMMAND, ATA_CMD_FLUSH_CACHE);
+    
+    // Wait for command to complete
+    if (!ata_wait_ready(dev)) {
+        kprintf(ERROR, "ATA flush: Flush failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 // Get ATA device
 struct ata_device* ata_get_device(uint8_t bus, uint8_t drive) {
     if (bus > 1 || drive > 1) {

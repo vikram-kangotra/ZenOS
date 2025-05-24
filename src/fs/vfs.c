@@ -181,6 +181,14 @@ void vfs_close(struct vfs_node* node) {
     if (node->close) {
         node->close(node);
     }
+
+    // If this is a file (not a directory), sync the device
+    if (node->flags == FS_FILE) {
+        struct block_device* dev = ((struct fat32_file*)node->impl)->dev;
+        if (dev) {
+            block_device_sync(dev);
+        }
+    }
 }
 
 // Read from a file
@@ -312,4 +320,28 @@ struct vfs_node* vfs_getcwd(void) {
     struct vfs_node* result = current_dir;
     mutex_release(&vfs_mutex);
     return result;
+}
+
+// Shutdown VFS
+void vfs_shutdown(void) {
+    kprintf(INFO, "Shutting down VFS...\n");
+    
+    // Close current directory if it exists
+    if (current_dir) {
+        if (current_dir->close) {
+            current_dir->close(current_dir);
+        }
+        vfs_destroy_node(current_dir);
+        current_dir = NULL;
+    }
+    
+    // Unmount FAT32 filesystem
+    if (!fat32_unmount()) {
+        kprintf(ERROR, "Failed to unmount FAT32 filesystem\n");
+    }
+    
+    // Destroy VFS mutex
+    mutex_release(&vfs_mutex);
+    
+    kprintf(INFO, "VFS shutdown complete\n");
 } 

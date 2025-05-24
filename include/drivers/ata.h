@@ -69,5 +69,6 @@ struct ata_device {
 bool ata_init(void);
 bool ata_read_sectors(struct ata_device* dev, uint32_t lba, uint8_t count, void* buffer);
 bool ata_write_sectors(struct ata_device* dev, uint32_t lba, uint8_t count, const void* buffer);
+bool ata_flush_cache(struct ata_device* dev);
 struct ata_device* ata_get_device(uint8_t bus, uint8_t drive);
 void run_ata_tests(void); 

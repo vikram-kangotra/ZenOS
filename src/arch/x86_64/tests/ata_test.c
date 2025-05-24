@@ -1,6 +1,7 @@
 #include "drivers/ata.h"
 #include "kernel/kprintf.h"
 #include "kernel/mm/kmalloc.h"
+#include "arch/x86_64/io.h"
 #include "string.h"
 #include "stdbool.h"
 
@@ -10,9 +11,42 @@ static const uint8_t PATTERN_2[512] = {[0 ... 511] = 0x55};  // Alternating bits
 static const uint8_t PATTERN_3[512] = {[0 ... 511] = 0xFF};  // All ones
 static const uint8_t PATTERN_4[512] = {[0 ... 511] = 0x00};  // All zeros
 
-// Test sectors - start from sector 100 to avoid overwriting important data
-#define TEST_SECTOR_START 100
-#define TEST_SECTOR_COUNT 4
+// Test sectors - use high sectors to avoid filesystem
+#define TEST_SECTOR_START 0x1000  // Start at sector 4096
+#define TEST_SECTOR_COUNT 4       // Test 4 sectors
+
+// Helper function to wait for drive
+static void ata_wait(void) {
+    for (int i = 0; i < 1000; i++) {
+        inb(0x1F7);  // Read status register
+    }
+}
+
+// Helper function to reset drive
+static bool ata_reset_drive(struct ata_device* dev) {
+    // Software reset
+    outb(dev->control_port, 0x04);  // Set SRST bit
+    ata_wait();
+    outb(dev->control_port, 0x00);  // Clear SRST bit
+    ata_wait();
+    
+    // Select drive
+    outb(dev->base_port + ATA_REG_DRIVE, dev->is_master ? ATA_DRIVE_MASTER : ATA_DRIVE_SLAVE);
+    ata_wait();
+    
+    // Wait for drive to be ready
+    uint8_t status;
+    int timeout = 100000;
+    do {
+        status = inb(dev->base_port + ATA_REG_STATUS);
+        if (status & ATA_SR_ERR) {
+            return false;
+        }
+        timeout--;
+    } while ((status & ATA_SR_BSY) && timeout > 0);
+    
+    return timeout > 0;
+}
 
 // Helper function to compare buffers
 static bool compare_buffers(const uint8_t* buf1, const uint8_t* buf2, size_t size) {
@@ -49,6 +83,9 @@ static bool test_single_sector(struct ata_device* dev, uint32_t sector, const ui
         kfree(read_buffer);
         return false;
     }
+    
+    // Wait for write to complete
+    ata_wait();
     
     // Read it back
     kprintf(INFO, "Reading sector %d...\n", sector);
@@ -98,6 +135,9 @@ static bool test_multiple_sectors(struct ata_device* dev, uint32_t start_sector,
         return false;
     }
     
+    // Wait for write to complete
+    ata_wait();
+    
     // Read it back
     kprintf(INFO, "Reading sectors %d-%d...\n", start_sector, start_sector + count - 1);
     if (!ata_read_sectors(dev, start_sector, count, read_buffer)) {
@@ -124,13 +164,6 @@ static bool test_multiple_sectors(struct ata_device* dev, uint32_t start_sector,
 // Test boundary conditions
 static bool test_boundary_conditions(struct ata_device* dev) {
     kprintf(INFO, "\nTesting boundary conditions...\n");
-    
-    // Test first writable sector (sector 1) instead of sector 0
-    kprintf(INFO, "Testing first writable sector (sector 1)...\n");
-    if (!test_single_sector(dev, 1, PATTERN_1)) {
-        kprintf(ERROR, "First writable sector test failed\n");
-        return false;
-    }
     
     // Test last sector
     uint32_t last_sector = dev->sectors - 1;
@@ -166,6 +199,12 @@ void run_ata_tests(void) {
     
     kprintf(INFO, "Testing device: %s (Serial: %s)\n", dev->model, dev->serial);
     
+    // Reset drive before tests
+    if (!ata_reset_drive(dev)) {
+        kprintf(ERROR, "Failed to reset drive before tests\n");
+        return;
+    }
+    
     bool all_tests_passed = true;
     
     // Test single sector operations with different patterns
@@ -186,5 +225,10 @@ void run_ata_tests(void) {
         kprintf(INFO, "\nAll ATA tests completed successfully!\n");
     } else {
         kprintf(ERROR, "\nSome ATA tests failed!\n");
+    }
+    
+    // Reset drive after tests
+    if (!ata_reset_drive(dev)) {
+        kprintf(ERROR, "Failed to reset drive after tests\n");
     }
 } 

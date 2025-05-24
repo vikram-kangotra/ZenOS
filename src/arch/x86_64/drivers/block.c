@@ -65,4 +65,12 @@ uint64_t block_device_get_sector_count(struct block_device* dev) {
         return 0;
     }
     return dev->ops->get_sector_count(dev->private_data);
+}
+
+bool block_device_sync(struct block_device* dev) {
+    if (!dev || !dev->ops || !dev->ops->sync) {
+        kprintf(ERROR, "Invalid block device or operation\n");
+        return false;
+    }
+    return dev->ops->sync(dev->private_data);
 } 
