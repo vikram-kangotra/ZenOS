@@ -181,57 +181,12 @@ bool fat32_init(struct block_device* dev) {
     return true;
 }
 
-// Find a file or directory in a directory
-static struct fat32_file* find_in_directory(struct fat32_file* dir, const char* name) {
-    if (!dir || !dir->is_directory || !name) {
-        kprintf(ERROR, "find_in_directory: Invalid parameters\n");
-        return NULL;
-    }
-
-
-    // Convert name to 8.3 format for comparison
-    char name83[11];
-    memset(name83, ' ', 11);
-    strncpy(name83, name, 8);
-    
-    // Reset directory position
-    dir->position = 0;
-    dir->current_cluster = dir->first_cluster;
-    
-    struct fat32_dir_entry entry;
-    while (fat32_readdir(dir, &entry)) {
-        
-        // Compare names in 8.3 format
-        if (memcmp(entry.name, name83, 11) == 0) {
-            
-            struct fat32_file* file = kmalloc(sizeof(struct fat32_file));
-            if (!file) {
-                kprintf(ERROR, "find_in_directory: Failed to allocate file\n");
-                return NULL;
-            }
-            
-            memset(file, 0, sizeof(struct fat32_file));
-            file->dev = dir->dev;
-            file->first_cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
-            file->current_cluster = file->first_cluster;
-            file->position = 0;
-            file->size = entry.file_size;
-            file->is_directory = (entry.attributes & 0x10) != 0;
-            
-            return file;
-        }
-    }
-    
-    return NULL;
-}
-
 // Parse path and find file
 struct fat32_file* fat32_open(struct block_device* dev, const char* path) {
     if (!fs_private || !path) {
         kprintf(ERROR, "fat32_open: Invalid parameters\n");
         return NULL;
     }
-
 
     // Special case for root directory
     if (strcmp(path, "/") == 0) {
@@ -282,17 +237,91 @@ struct fat32_file* fat32_open(struct block_device* dev, const char* path) {
     char* token = strtok(path_copy, "/");
     
     while (token) {
+        // Convert token to uppercase for comparison
+        char* token_upper = strdup(token);
+        if (!token_upper) {
+            kprintf(ERROR, "fat32_open: Failed to allocate token copy\n");
+            fat32_close(current);
+            kfree(path_copy);
+            return NULL;
+        }
         
-        struct fat32_file* next = find_in_directory(current, token);
-        if (!next) {
+        for (char* p = token_upper; *p; p++) {
+            *p = toupper(*p);
+        }
+        
+        // Reset directory position
+        current->position = 0;
+        current->current_cluster = current->first_cluster;
+        
+        struct fat32_dir_entry entry;
+        bool found = false;
+        
+        while (fat32_readdir(current, &entry)) {
+            // Convert entry name to uppercase for comparison
+            char entry_name[13];
+            memset(entry_name, 0, sizeof(entry_name));
+            strncpy(entry_name, (char*)entry.name, 8);
+            entry_name[8] = '\0';
+            
+            // Trim trailing spaces
+            char* end = entry_name + strlen(entry_name) - 1;
+            while (end >= entry_name && *end == ' ') {
+                *end-- = '\0';
+            }
+            
+            // Add extension if present
+            if (entry.name[8] != ' ') {
+                strcat(entry_name, ".");
+                strncat(entry_name, (char*)entry.name + 8, 3);
+                
+                // Trim trailing spaces from extension
+                end = entry_name + strlen(entry_name) - 1;
+                while (end >= entry_name && *end == ' ') {
+                    *end-- = '\0';
+                }
+            }
+            
+            // Convert to uppercase
+            for (char* p = entry_name; *p; p++) {
+                *p = toupper(*p);
+            }
+            
+            if (strcmp(entry_name, token_upper) == 0) {
+                found = true;
+                break;
+            }
+        }
+        
+        kfree(token_upper);
+        
+        if (!found) {
             kprintf(ERROR, "fat32_open: Component not found: %s\n", token);
             fat32_close(current);
             kfree(path_copy);
             return NULL;
         }
         
+        // Create new file structure for the found entry
+        struct fat32_file* next = kmalloc(sizeof(struct fat32_file));
+        if (!next) {
+            kprintf(ERROR, "fat32_open: Failed to allocate next file\n");
+            fat32_close(current);
+            kfree(path_copy);
+            return NULL;
+        }
+        
+        memset(next, 0, sizeof(struct fat32_file));
+        next->dev = dev;
+        next->first_cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
+        next->current_cluster = next->first_cluster;
+        next->position = 0;
+        next->size = entry.file_size;
+        next->is_directory = (entry.attributes & 0x10) != 0;
+        
         fat32_close(current);
         current = next;
+        
         token = strtok(NULL, "/");
     }
     
@@ -947,6 +976,143 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
         return NULL;
     }
     
+    // Handle special directory entries
+    if (strcmp(name, ".") == 0) {
+        // Return current directory
+        struct vfs_node* result = kmalloc(sizeof(struct vfs_node));
+        if (!result) {
+            kprintf(ERROR, "fat32_vfs_finddir: Failed to allocate node\n");
+            return NULL;
+        }
+        memset(result, 0, sizeof(struct vfs_node));
+        strncpy(result->name, node->name, 127);
+        result->name[127] = '\0';
+        result->flags = node->flags;
+        result->length = node->length;
+        
+        // Create a new file structure for the entry
+        struct fat32_file* entry_file = kmalloc(sizeof(struct fat32_file));
+        if (!entry_file) {
+            kfree(result);
+            return NULL;
+        }
+        memset(entry_file, 0, sizeof(struct fat32_file));
+        entry_file->dev = file->dev;
+        entry_file->first_cluster = file->first_cluster;
+        entry_file->current_cluster = file->current_cluster;
+        entry_file->position = file->position;
+        entry_file->size = file->size;
+        entry_file->is_directory = file->is_directory;
+        
+        result->impl = entry_file;
+        result->parent = node->parent;
+        
+        // Set up VFS operations
+        result->open = fat32_vfs_open;
+        result->close = fat32_vfs_close;
+        result->read = fat32_vfs_read;
+        result->write = fat32_vfs_write;
+        result->readdir = fat32_vfs_readdir;
+        result->finddir = fat32_vfs_finddir;
+        
+        return result;
+    }
+    
+    if (strcmp(name, "..") == 0) {
+        // Return parent directory
+        if (!node->parent) {
+            // If no parent, return root
+            return fat32_get_root();
+        }
+        
+        // Get the parent directory's file structure
+        struct fat32_file* parent_file = node->parent->impl;
+        if (!parent_file) {
+            // If parent has no file structure, create one
+            parent_file = kmalloc(sizeof(struct fat32_file));
+            if (!parent_file) {
+                kprintf(ERROR, "fat32_vfs_finddir: Failed to allocate parent file structure\n");
+                return NULL;
+            }
+            memset(parent_file, 0, sizeof(struct fat32_file));
+            
+            // Read the ".." entry to get parent's cluster
+            struct fat32_dir_entry dotdot;
+            bool found = false;
+            
+            // Reset directory position
+            file->position = 0;
+            file->current_cluster = file->first_cluster;
+            
+            while (fat32_readdir(file, &dotdot)) {
+                if (dotdot.name[0] == '.' && dotdot.name[1] == '.' && dotdot.name[2] == ' ') {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                kprintf(ERROR, "fat32_vfs_finddir: Could not find .. entry\n");
+                kfree(parent_file);
+                return NULL;
+            }
+            
+            // Initialize parent file structure
+            parent_file->dev = file->dev;
+            parent_file->first_cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
+            // If parent cluster is 0, it means we're at root
+            if (parent_file->first_cluster == 0) {
+                parent_file->first_cluster = fs_private->root_dir_cluster;
+            }
+            parent_file->current_cluster = parent_file->first_cluster;
+            parent_file->position = 0;
+            parent_file->size = 0;
+            parent_file->is_directory = true;
+            
+            // Set the parent's file structure
+            node->parent->impl = parent_file;
+            node->parent->flags = FS_DIRECTORY;  // Ensure parent is marked as directory
+        }
+        
+        struct vfs_node* result = kmalloc(sizeof(struct vfs_node));
+        if (!result) {
+            kprintf(ERROR, "fat32_vfs_finddir: Failed to allocate node\n");
+            return NULL;
+        }
+        memset(result, 0, sizeof(struct vfs_node));
+        strncpy(result->name, node->parent->name, 127);
+        result->name[127] = '\0';
+        result->flags = FS_DIRECTORY;  // Ensure result is marked as directory
+        result->length = node->parent->length;
+        
+        // Create a new file structure for the entry
+        struct fat32_file* entry_file = kmalloc(sizeof(struct fat32_file));
+        if (!entry_file) {
+            kfree(result);
+            return NULL;
+        }
+        memset(entry_file, 0, sizeof(struct fat32_file));
+        entry_file->dev = parent_file->dev;
+        entry_file->first_cluster = parent_file->first_cluster;
+        entry_file->current_cluster = parent_file->first_cluster;  // Reset to first cluster
+        entry_file->position = 0;  // Reset position
+        entry_file->size = parent_file->size;
+        entry_file->is_directory = true;  // Parent is always a directory
+        
+        result->impl = entry_file;
+        result->parent = node->parent->parent;
+        
+        // Set up VFS operations
+        result->open = fat32_vfs_open;
+        result->close = fat32_vfs_close;
+        result->read = fat32_vfs_read;
+        result->write = fat32_vfs_write;
+        result->readdir = fat32_vfs_readdir;
+        result->finddir = fat32_vfs_finddir;
+        
+        return result;
+    }
+    
     // Reset directory position
     file->position = 0;
     file->current_cluster = file->first_cluster;
@@ -1011,6 +1177,15 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
             entry_file->is_directory = (entry.attributes & 0x10) != 0;
             
             result->impl = entry_file;
+            result->parent = node;
+            
+            // Set up VFS operations
+            result->open = fat32_vfs_open;
+            result->close = fat32_vfs_close;
+            result->read = fat32_vfs_read;
+            result->write = fat32_vfs_write;
+            result->readdir = fat32_vfs_readdir;
+            result->finddir = fat32_vfs_finddir;
             
             return result;
         }
