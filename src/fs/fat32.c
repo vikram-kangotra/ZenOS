@@ -26,6 +26,7 @@ struct fat32_private {
 
 // Global filesystem data
 static struct fat32_private* fs_private = NULL;
+static struct vfs_node* fat32_root_node = NULL;
 
 // Helper functions
 static uint32_t cluster_to_lba(struct fat32_private* priv, uint32_t cluster) {
@@ -177,6 +178,33 @@ bool fat32_init(struct block_device* dev) {
     kprintf(INFO, "  Total Clusters: %d\n", 
             (fs_private->boot_sector.total_sectors_32 - fs_private->data_start) / 
             fs_private->boot_sector.sectors_per_cluster);
+
+    // Create persistent root node and impl
+    if (fat32_root_node) {
+        // Free previous root node if re-initializing
+        if (fat32_root_node->impl) kfree(fat32_root_node->impl);
+        kfree(fat32_root_node);
+    }
+    fat32_root_node = kmalloc(sizeof(struct vfs_node));
+    memset(fat32_root_node, 0, sizeof(struct vfs_node));
+    strcpy(fat32_root_node->name, "/");
+    fat32_root_node->flags = FS_DIRECTORY;
+    fat32_root_node->open = fat32_vfs_open;
+    fat32_root_node->close = fat32_vfs_close;
+    fat32_root_node->read = fat32_vfs_read;
+    fat32_root_node->write = fat32_vfs_write;
+    fat32_root_node->readdir = fat32_vfs_readdir;
+    fat32_root_node->finddir = fat32_vfs_finddir;
+    // Set up impl
+    struct fat32_file* root_file = kmalloc(sizeof(struct fat32_file));
+    memset(root_file, 0, sizeof(struct fat32_file));
+    root_file->dev = dev;
+    root_file->first_cluster = fs_private->root_dir_cluster;
+    root_file->current_cluster = root_file->first_cluster;
+    root_file->position = 0;
+    root_file->size = 0;
+    root_file->is_directory = true;
+    fat32_root_node->impl = root_file;
 
     return true;
 }
@@ -989,9 +1017,17 @@ struct vfs_node* fat32_vfs_readdir(struct vfs_node* node, uint32_t index) {
 }
 
 struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
-    struct fat32_file* file = node->impl;
-    if (!file || !file->is_directory) {
-        kprintf(ERROR, "fat32_vfs_finddir: Invalid parameters\n");
+    struct fat32_file* file = node ? node->impl : NULL;
+    if (!node) {
+        kprintf(ERROR, "fat32_vfs_finddir: node is NULL\n");
+        return NULL;
+    }
+    if (!file) {
+        kprintf(ERROR, "fat32_vfs_finddir: node->impl (fat32_file) is NULL for node '%s'\n", node->name);
+        return NULL;
+    }
+    if (!file->is_directory) {
+        kprintf(ERROR, "fat32_vfs_finddir: node->impl is not a directory for node '%s'\n", node->name);
         return NULL;
     }
     
@@ -1215,26 +1251,7 @@ struct vfs_node* fat32_get_root(void) {
     if (!fs_private) {
         return NULL;
     }
-
-    // Create VFS node for root
-    struct vfs_node* root = kmalloc(sizeof(struct vfs_node));
-    if (!root) {
-        return NULL;
-    }
-
-    memset(root, 0, sizeof(struct vfs_node));
-    strcpy(root->name, "/");
-    root->flags = FS_DIRECTORY;
-
-    // Set up VFS operations
-    root->open = fat32_vfs_open;
-    root->close = fat32_vfs_close;
-    root->read = fat32_vfs_read;
-    root->write = fat32_vfs_write;
-    root->readdir = fat32_vfs_readdir;
-    root->finddir = fat32_vfs_finddir;
-
-    return root;
+    return fat32_root_node;
 }
 
 // Create a new node

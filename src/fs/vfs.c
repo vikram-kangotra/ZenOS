@@ -62,6 +62,10 @@ void vfs_init(void) {
     current_dir->finddir = fat32_vfs_finddir;
     
     kprintf(INFO, "FAT32 filesystem mounted successfully\n");
+    // Defensive: Check current_dir and impl
+    if (!current_dir || !(current_dir->flags & FS_DIRECTORY) || !current_dir->impl) {
+        kprintf(ERROR, "vfs_init: current_dir or its impl is not a valid directory after init!\n");
+    }
 }
 
 // Create a new VFS node
@@ -144,6 +148,16 @@ struct vfs_node* vfs_open(const char* path, uint32_t flags) {
     mutex_acquire(&vfs_mutex);
     current = (*path == '/') ? fat32_get_root() : current_dir;
     mutex_release(&vfs_mutex);
+    
+    // Defensive: Ensure root node is valid and a directory
+    if (!current) {
+        kprintf(ERROR, "vfs_open: Root/current directory node is NULL!\n");
+        return NULL;
+    }
+    if (!(current->flags & FS_DIRECTORY) || !current->impl) {
+        kprintf(ERROR, "vfs_open: Root/current directory is not a valid directory or has no impl!\n");
+        return NULL;
+    }
     
     // Skip leading slash
     if (*path == '/') path++;

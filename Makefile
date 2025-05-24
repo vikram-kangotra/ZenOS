@@ -27,7 +27,22 @@ LDFLAGS := -T targets/x86_64/linker.ld -melf_x86_64
 ASM_SRC := $(shell find $(ASM_DIR) $(COMMON_ARCH_DIR) -name '*.asm')
 C_SRC := $(shell find $(C_DIR) $(KERNEL_C_DIR) $(FS_C_DIR) $(MULTIBOOT_C_DIR) $(COMMON_ARCH_DIR) -name '*.c')
 
+# WebAssembly source files
+WASM_SRC = src/wasm/src/wasm.c \
+           src/wasm/src/wasm_parser.c \
+           src/wasm/src/wasm_exec.c \
+           src/wasm/src/wasm_kernel.c
+
+# Add WebAssembly source files to C source files
+C_SRC += $(WASM_SRC)
+
 OBJ := $(ASM_SRC:$(SRC_DIR)/%.asm=$(BUILD_DIR)/%.o) $(C_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o)
+
+# WebAssembly tools
+WAT2WASM := wat2wasm
+
+# WebAssembly test module
+WASM_TEST := $(DIST_DIR)/x86_64/test.wasm
 
 $(ISO): $(TARGET) $(ISO_DIR)/boot/grub/grub.cfg
 	@mkdir -p $(ISO_DIR)/boot
@@ -47,7 +62,7 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Create FAT32 disk image
-$(DISK_IMG):
+$(DISK_IMG): $(WASM_TEST)
 	@mkdir -p $(@D)
 	# Create a 512MB disk to ensure proper FAT32 operation
 	dd if=/dev/zero of=$@ bs=1M count=512
@@ -59,10 +74,21 @@ $(DISK_IMG):
 	mmd -i $@ ::/dev ::/proc ::/bin ::/etc ::/lib ::/mnt ::/opt ::/root ::/tmp
 	# Copy Readme.md to disk
 	mcopy -i $@ Readme.md ::/Readme.md
+	# Copy WebAssembly test module
+	mcopy -i $@ $(WASM_TEST) ::/test.wsm
 	# List directory contents to verify
 	mdir -i $@ ::
 	# Print filesystem info
 	fsck.fat -v $@
+
+# Compile WebAssembly test module
+$(WASM_TEST): src/wasm/test/test.wat
+	@mkdir -p $(@D)
+	@if ! command -v $(WAT2WASM) >/dev/null 2>&1; then \
+		echo "Error: wat2wasm not found. Please install wabt (WebAssembly Binary Toolkit) to build test.wasm."; \
+		exit 1; \
+	fi
+	$(WAT2WASM) $< -o $@
 
 .PHONY: clean run disk verify-disk
 clean:

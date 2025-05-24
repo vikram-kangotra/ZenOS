@@ -10,6 +10,11 @@
 #include "drivers/rtc.h"
 #include "fs/vfs.h"
 #include "fs/fat32.h"
+#include "wasm/wasm.h"
+#include "kernel/mm/kmalloc.h"
+#include "wasm/wasm_parser.h"
+#include "wasm/wasm_exec.h"
+#include "wasm/wasm_kernel.h"
 
 #define CLI_BUFFER_SIZE 256
 
@@ -33,6 +38,8 @@ static void cmd_mkdir(const char* args);
 static void cmd_touch(const char* args);
 static void cmd_cat(const char* args);
 static void cmd_shutdown(const char* args);
+static void cmd_wasm(const char* args);
+static void cmd_wasmtest(const char* args);
 
 // Command table
 static const struct Command commands[] = {
@@ -49,6 +56,8 @@ static const struct Command commands[] = {
     {"touch", cmd_touch, "Create empty file"},
     {"cat", cmd_cat, "Display file contents"},
     {"shutdown", cmd_shutdown, "Shutdown the system"},
+    {"wasm", cmd_wasm, "Run a WebAssembly file"},
+    {"wasmtest", cmd_wasmtest, "Run WebAssembly tests"},
     {NULL, NULL, NULL}  // End marker
 };
 
@@ -252,6 +261,38 @@ static void cmd_shutdown(const char* args) {
     
     // Halt the CPU
     asm volatile("hlt");
+}
+
+static void cmd_wasm(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: wasm <file.wasm>\n");
+        return;
+    }
+    
+    // Load the WebAssembly module
+    wasm_module_t* module;
+    if (!wasm_load_module(args, &module)) {
+        kprintf(ERROR, "Failed to load WebAssembly module\n");
+        return;
+    }
+    
+    // Execute the module
+    uint64_t result;
+    if (!wasm_execute_function_by_name(module, "add", &result)) {
+        kprintf(ERROR, "Failed to execute WebAssembly function\n");
+    } else {
+        kprintf(CLI, "WebAssembly function returned: %d\n", result);
+    }
+}
+
+static void cmd_wasmtest(const char* args) {
+    (void)args;
+    kprintf(CLI, "Running WebAssembly tests...\n");
+    
+    // Run the built-in tests
+    wasm_test();
+    
+    kprintf(CLI, "WebAssembly tests completed\n");
 }
 
 // CLI state

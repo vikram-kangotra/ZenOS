@@ -57,7 +57,7 @@ void buddy_init(uintptr_t mem_start, uint64_t mem_size) {
 
 void* buddy_alloc(size_t size) {
     if (size == 0 || size > (1ull << MAX_ORDER)) {
-        kprintf(ERROR, "Invalid allocation size: %zu\n", size);
+        kprintf(ERROR, "Invalid allocation size: %u\n", size);
         return NULL;
     }
     
@@ -76,7 +76,7 @@ void* buddy_alloc(size_t size) {
     }
     
     if (current_order > MAX_ORDER) {
-        kprintf(ERROR, "No suitable block found for size %zu\n", size);
+        kprintf(ERROR, "No suitable block found for size %u\n", size);
         mutex_release(&buddy_mutex);
         return NULL;
     }

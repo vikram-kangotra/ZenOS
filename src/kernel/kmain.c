@@ -14,6 +14,7 @@
 #include "fs/vfs.h"
 #include "drivers/ata.h"
 #include "string.h"
+#include "wasm/wasm_kernel.h"
 
 void kmain() {
     multiboot2_parse();
@@ -50,7 +51,16 @@ void kmain() {
     
     kprintf(INFO, "Welcome to ZenOS\n");
 
+    // Initialize WebAssembly runtime
+    wasm_test();
+
     // Start the command line interface
     cli_run();
+
+    // Main kernel loop
+    while (1) {
+        // Kernel idle loop
+        asm("hlt");
+    }
 }
 
