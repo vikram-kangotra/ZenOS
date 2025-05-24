@@ -342,6 +342,7 @@ bool fat32_close(struct fat32_file* file) {
 // Read from a file
 uint32_t fat32_read(struct fat32_file* file, void* buffer, uint32_t size) {
     if (!file || !buffer || size == 0) {
+        kprintf(ERROR, "fat32_read: Invalid parameters\n");
         return 0;
     }
 
@@ -356,6 +357,7 @@ uint32_t fat32_read(struct fat32_file* file, void* buffer, uint32_t size) {
         // If at start of cluster, read it
         if (cluster_offset == 0) {
             if (!read_cluster(fs_private, file->current_cluster, cluster_buffer)) {
+                kprintf(ERROR, "fat32_read: Failed to read cluster %d\n", file->current_cluster);
                 break;
             }
         }
@@ -376,10 +378,11 @@ uint32_t fat32_read(struct fat32_file* file, void* buffer, uint32_t size) {
 
         // Move to next cluster if needed
         if (file->position % fs_private->bytes_per_cluster == 0) {
-            file->current_cluster = get_next_cluster(fs_private, file->current_cluster);
-            if (file->current_cluster >= 0x0FFFFFF8) {
+            uint32_t next_cluster = get_next_cluster(fs_private, file->current_cluster);
+            if (next_cluster >= 0x0FFFFFF8) {
                 break;  // End of file
             }
+            file->current_cluster = next_cluster;
         }
     }
 
@@ -864,15 +867,31 @@ void fat32_vfs_close(struct vfs_node* node) {
 
 uint32_t fat32_vfs_read(struct vfs_node* node, uint32_t offset, uint32_t size, uint8_t* buffer) {
     struct fat32_file* file = node->impl;
-    if (!file) return 0;
-    
-    if (offset != file->position) {
-        if (!fat32_seek(file, offset)) {
-            return 0;
-        }
+    if (!file) {
+        kprintf(ERROR, "fat32_vfs_read: No file structure\n");
+        return 0;
     }
     
-    return fat32_read(file, buffer, size);
+    // If we're at or past the end of file, return 0
+    if (offset >= file->size) {
+        return 0;
+    }
+    
+    // Calculate how much we can actually read
+    uint32_t remaining = file->size - offset;
+    if (size > remaining) {
+        size = remaining;
+    }
+    
+    // Always seek to the correct position
+    if (!fat32_seek(file, offset)) {
+        kprintf(ERROR, "fat32_vfs_read: Failed to seek to position %d\n", offset);
+        return 0;
+    }
+    
+    uint32_t bytes_read = fat32_read(file, buffer, size);
+            
+    return bytes_read;
 }
 
 uint32_t fat32_vfs_write(struct vfs_node* node, uint32_t offset, uint32_t size, uint8_t* buffer) {
@@ -1060,10 +1079,6 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
             // Initialize parent file structure
             parent_file->dev = file->dev;
             parent_file->first_cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
-            // If parent cluster is 0, it means we're at root
-            if (parent_file->first_cluster == 0) {
-                parent_file->first_cluster = fs_private->root_dir_cluster;
-            }
             parent_file->current_cluster = parent_file->first_cluster;
             parent_file->position = 0;
             parent_file->size = 0;

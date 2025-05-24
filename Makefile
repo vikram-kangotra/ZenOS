@@ -57,6 +57,8 @@ $(DISK_IMG):
 	fsck.fat -v $@
 	# Create directories and verify
 	mmd -i $@ ::/dev ::/proc ::/bin ::/etc ::/lib ::/mnt ::/opt ::/root ::/tmp
+	# Copy Readme.md to disk
+	mcopy -i $@ Readme.md ::/Readme.md
 	# List directory contents to verify
 	mdir -i $@ ::
 	# Print filesystem info

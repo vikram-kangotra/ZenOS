@@ -225,10 +225,13 @@ static void cmd_cat(const char* args) {
     
     uint8_t buffer[512];
     uint32_t bytes_read;
-    while ((bytes_read = vfs_read(file, 0, sizeof(buffer), buffer)) > 0) {
+    uint32_t offset = 0;
+    
+    while ((bytes_read = vfs_read(file, offset, sizeof(buffer), buffer)) > 0) {
         for (uint32_t i = 0; i < bytes_read; i++) {
             kprintf(CLI, "%c", buffer[i]);
         }
+        offset += bytes_read;
     }
     
     vfs_close(file);
