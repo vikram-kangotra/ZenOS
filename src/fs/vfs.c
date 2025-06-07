@@ -294,7 +294,9 @@ bool vfs_chdir(const char* path) {
         
         if (!next) {
             kprintf(ERROR, "vfs_chdir: Component not found: %s\n", token);
-            vfs_destroy_node(current);
+            if (current != current_dir) {
+                vfs_destroy_node(current);
+            }
             kfree(path_copy);
             return false;
         }
