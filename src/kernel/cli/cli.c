@@ -87,11 +87,18 @@ static void cmd_meminfo(const char* args) {
     (void)args;
     uint64_t total_ram = get_total_ram();
     uint64_t used_ram = get_used_ram();
-    uint64_t free_ram = total_ram - used_ram;
+    
+    // Calculate kernel size
+    extern uint64_t KERNEL_END;
+    uint64_t kernel_size = ((uint64_t)&KERNEL_END - 0x100000) / 1024;  // Convert to KB
+    
+    // Total used RAM includes both buddy allocator used memory and kernel size
+    uint64_t total_used = used_ram + kernel_size;
+    uint64_t free_ram = total_ram - total_used;
     
     kprintf(CLI, "Memory Information:\n");
     kprintf(CLI, "  Total RAM: %d KB\n", total_ram);
-    kprintf(CLI, "  Used RAM:  %d KB\n", used_ram);
+    kprintf(CLI, "  Used RAM:  %d KB\n", total_used);
     kprintf(CLI, "  Free RAM:  %d KB\n", free_ram);
 }
 

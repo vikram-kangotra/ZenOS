@@ -101,8 +101,8 @@ void* buddy_alloc(size_t size) {
     
     // Mark block as allocated
     block->magic = ~BLOCK_MAGIC;
-    
-    used_pages += (size + PAGE_SIZE - 1) / PAGE_SIZE;
+
+    used_pages += (1ULL << block->order) / PAGE_SIZE;
     
     mutex_release(&buddy_mutex);
     return (void*)((uint8_t*)block + sizeof(Block));
