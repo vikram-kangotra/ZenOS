@@ -1118,12 +1118,15 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
             
             // Initialize parent file structure
             parent_file->dev = file->dev;
-            uint32_t cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
-            if (cluster == 0) {
-                cluster = fs_private->root_dir_cluster;
+            uint32_t parent_cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
+            
+            // If parent cluster is 0, this is a root directory
+            if (parent_cluster == 0) {
+                parent_cluster = fs_private->root_dir_cluster;
             }
-            parent_file->first_cluster = cluster;
-            parent_file->current_cluster = parent_file->first_cluster;
+            
+            parent_file->first_cluster = parent_cluster;
+            parent_file->current_cluster = parent_cluster;
             parent_file->position = 0;
             parent_file->size = 0;
             parent_file->is_directory = true;
