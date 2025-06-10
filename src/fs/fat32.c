@@ -341,8 +341,12 @@ struct fat32_file* fat32_open(struct block_device* dev, const char* path) {
         
         memset(next, 0, sizeof(struct fat32_file));
         next->dev = dev;
-        next->first_cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
-        next->current_cluster = next->first_cluster;
+        uint32_t cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
+        if (cluster == 0) {
+            cluster = fs_private->root_dir_cluster;
+        }
+        next->first_cluster = cluster;
+        next->current_cluster = cluster;
         next->position = 0;
         next->size = entry.file_size;
         next->is_directory = (entry.attributes & 0x10) != 0;
@@ -1114,7 +1118,11 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
             
             // Initialize parent file structure
             parent_file->dev = file->dev;
-            parent_file->first_cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
+            uint32_t cluster = dotdot.first_cluster_low | (dotdot.first_cluster_high << 16);
+            if (cluster == 0) {
+                cluster = fs_private->root_dir_cluster;
+            }
+            parent_file->first_cluster = cluster;
             parent_file->current_cluster = parent_file->first_cluster;
             parent_file->position = 0;
             parent_file->size = 0;
@@ -1221,7 +1229,12 @@ struct vfs_node* fat32_vfs_finddir(struct vfs_node* node, const char* name) {
             
             memset(entry_file, 0, sizeof(struct fat32_file));
             entry_file->dev = file->dev;
-            entry_file->first_cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
+            uint32_t cluster = entry.first_cluster_low | (entry.first_cluster_high << 16);
+            if (cluster == 0) {
+                cluster = fs_private->root_dir_cluster;
+            }
+            entry_file->first_cluster = cluster;
+            entry_file->current_cluster = cluster;
             entry_file->current_cluster = entry_file->first_cluster;
             entry_file->position = 0;
             entry_file->size = entry.file_size;
