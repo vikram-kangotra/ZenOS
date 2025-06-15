@@ -92,6 +92,19 @@ void wasm_module_delete(wasm_module_t* module) {
         kfree(module->types);
     }
     
+    // Free imports
+    if (module->imports) {
+        for (uint32_t i = 0; i < module->import_count; i++) {
+            if (module->imports[i].module_name) {
+                kfree(module->imports[i].module_name);
+            }
+            if (module->imports[i].field_name) {
+                kfree(module->imports[i].field_name);
+            }
+        }
+        kfree(module->imports);
+    }
+    
     // Free functions
     if (module->functions) {
         for (uint32_t i = 0; i < module->function_count; i++) {
@@ -121,6 +134,83 @@ void wasm_module_delete(wasm_module_t* module) {
     kfree(module);
 }
 
+// Register a host function with the WebAssembly instance
+bool wasm_register_host_function(wasm_instance_t* instance, const char* module_name, const char* field_name, 
+                               wasm_functype_t type, wasm_host_function_t function) {
+    if (!instance || !module_name || !field_name || !function) {
+        kprintf(ERROR, "Invalid parameters for host function registration\n");
+        return false;
+    }
+
+    // Check if this import exists in the module
+    bool found = false;
+    uint32_t import_index = 0;
+    for (uint32_t i = 0; i < instance->module->import_count; i++) {
+        if (strcmp(instance->module->imports[i].module_name, module_name) == 0 &&
+            strcmp(instance->module->imports[i].field_name, field_name) == 0) {
+            found = true;
+            import_index = i;
+            break;
+        }
+    }
+
+    if (!found) {
+        kprintf(ERROR, "Import '%s.%s' not found in module\n", module_name, field_name);
+        return false;
+    }
+
+    // Verify function type matches
+    wasm_import_t* import = &instance->module->imports[import_index];
+    if (import->kind != 0) { // 0 = function
+        kprintf(ERROR, "Import '%s.%s' is not a function\n", module_name, field_name);
+        return false;
+    }
+
+    wasm_functype_t* import_type = &instance->module->types[import->type_index];
+    if (import_type->param_count != type.param_count ||
+        import_type->result_count != type.result_count) {
+        kprintf(ERROR, "Function type mismatch for '%s.%s'\n", module_name, field_name);
+        return false;
+    }
+
+    // Allocate or resize host functions array
+    if (!instance->host_functions) {
+        instance->host_functions = kmalloc(sizeof(wasm_host_function_t));
+        if (!instance->host_functions) {
+            kprintf(ERROR, "Failed to allocate host functions array\n");
+            return false;
+        }
+        instance->host_functions[0] = function;  // Store the first function
+        instance->host_function_count = 1;
+    } else {
+        // We already have the array allocated with size 1, just store the function
+        instance->host_functions[0] = function;
+    }
+
+    kprintf(INFO, "Registered host function '%s.%s'\n", module_name, field_name);
+    return true;
+}
+
+// Example proc_exit implementation
+static bool host_proc_exit(wasm_instance_t* instance, wasm_value_t* args, uint32_t arg_count, wasm_value_t* result) {
+    if (!instance || !args || arg_count != 1) {
+        return false;
+    }
+    
+    // Get exit code from first argument
+    int32_t exit_code = args[0].i32;
+    kprintf(INFO, "WebAssembly program exited with code %d\n", exit_code);
+    
+    // Set result to 0 to indicate successful exit
+    if (result) {
+        result->i32 = exit_code;
+    }
+
+    instance->should_exit = true;
+    // Here you would implement the actual exit logic
+    return true;
+}
+
 // Create a new WebAssembly instance
 wasm_instance_t* wasm_instance_new(wasm_module_t* module) {
     if (!module) {
@@ -134,6 +224,9 @@ wasm_instance_t* wasm_instance_new(wasm_module_t* module) {
         kprintf(ERROR, "Failed to allocate WebAssembly instance\n");
         return NULL;
     }
+    
+    // Initialize all fields to 0/NULL
+    memset(instance, 0, sizeof(wasm_instance_t));
     
     instance->module = module;
     
@@ -163,10 +256,82 @@ wasm_instance_t* wasm_instance_new(wasm_module_t* module) {
         return NULL;
     }
     
-    memcpy(instance->functions, module->functions, 
-           sizeof(wasm_function_t) * module->function_count);
+    // Initialize all functions to NULL/0
+    memset(instance->functions, 0, sizeof(wasm_function_t) * module->function_count);
+    
+    // Copy function data
+    for (uint32_t i = 0; i < module->function_count; i++) {
+        instance->functions[i].type = module->functions[i].type;
+        instance->functions[i].code = module->functions[i].code;
+        instance->functions[i].code_size = module->functions[i].code_size;
+        instance->functions[i].module = instance;
+        instance->functions[i].local_count = module->functions[i].local_count;
+    }
     instance->function_count = module->function_count;
     
+    // Initialize globals
+    instance->global_count = module->global_count;
+    if (module->global_count > 0) {
+        instance->globals = kmalloc(sizeof(wasm_value_t) * module->global_count);
+        if (!instance->globals) {
+            kprintf(ERROR, "Failed to allocate globals array\n");
+            if (instance->memory) {
+                kfree(instance->memory);
+            }
+            if (instance->functions) {
+                kfree(instance->functions);
+            }
+            kfree(instance);
+            return NULL;
+        }
+        memcpy(instance->globals, module->globals, 
+               sizeof(wasm_value_t) * module->global_count);
+    } else {
+        instance->globals = NULL;
+    }
+    
+    // Initialize host functions array
+    instance->host_functions = NULL;
+    instance->host_function_count = 0;
+    
+    // Register default host functions only if imported
+    bool needs_proc_exit = false;
+    for (uint32_t i = 0; i < module->import_count; i++) {
+        if (module->imports[i].kind == 0 &&
+            strcmp(module->imports[i].module_name, "wasi_snapshot_preview1") == 0 &&
+            strcmp(module->imports[i].field_name, "proc_exit") == 0) {
+            needs_proc_exit = true;
+            break;
+        }
+    }
+    if (needs_proc_exit) {
+        // Allocate host functions array with size 1 since we only have one host function
+        instance->host_functions = kmalloc(sizeof(wasm_host_function_t));
+        if (!instance->host_functions) {
+            kprintf(ERROR, "Failed to allocate host functions array\n");
+            wasm_instance_delete(instance);
+            return NULL;
+        }
+        instance->host_function_count = 1;
+        
+        wasm_functype_t proc_exit_type = {
+            .params = kmalloc(sizeof(wasm_value_type_t)),
+            .param_count = 1,
+            .results = NULL,
+            .result_count = 0
+        };
+        proc_exit_type.params[0] = WASM_I32;  // proc_exit takes one i32 parameter
+        if (!wasm_register_host_function(instance, "wasi_snapshot_preview1", "proc_exit", 
+                                       proc_exit_type, host_proc_exit)) {
+            kprintf(ERROR, "Failed to register proc_exit host function\n");
+            kfree(proc_exit_type.params);
+            wasm_instance_delete(instance);
+            return NULL;
+        }
+        kfree(proc_exit_type.params);
+    }
+    
+    instance->should_exit = false;
     return instance;
 }
 
@@ -180,6 +345,10 @@ void wasm_instance_delete(wasm_instance_t* instance) {
     
     if (instance->functions) {
         kfree(instance->functions);
+    }
+    
+    if (instance->globals) {
+        kfree(instance->globals);
     }
     
     kfree(instance);

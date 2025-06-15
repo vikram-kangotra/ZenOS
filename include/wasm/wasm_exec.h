@@ -17,6 +17,7 @@ typedef enum {
     WASM_OP_BR = 0x0C,
     WASM_OP_BR_IF = 0x0D,
     WASM_OP_RETURN = 0x0F,
+    WASM_OP_CALL = 0x10,
     
     // Parametric instructions
     WASM_OP_DROP = 0x1A,

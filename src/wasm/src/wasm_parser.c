@@ -51,10 +51,14 @@ bool parse_functype(const uint8_t* bytes, size_t size, size_t* offset, wasm_func
     }
     
     // Allocate and read parameter types
-    type->params = kmalloc(sizeof(wasm_value_type_t) * param_count);
-    if (!type->params) {
-        kprintf(ERROR, "Failed to allocate parameter types\n");
-        return false;
+    if (param_count > 0) {
+        type->params = kmalloc(sizeof(wasm_value_type_t) * param_count);
+        if (!type->params) {
+            kprintf(ERROR, "Failed to allocate parameter types\n");
+            return false;
+        }
+    } else {
+        type->params = NULL;
     }
     
     for (uint32_t i = 0; i < param_count; i++) {
@@ -76,18 +80,21 @@ bool parse_functype(const uint8_t* bytes, size_t size, size_t* offset, wasm_func
     }
     
     // Allocate and read result types
-    type->results = kmalloc(sizeof(wasm_value_type_t) * result_count);
-    if (!type->results) {
-        kprintf(ERROR, "Failed to allocate result types\n");
-        kfree(type->params);
-        return false;
+    if (result_count > 0) {
+        type->results = kmalloc(sizeof(wasm_value_type_t) * result_count);
+        if (!type->results) {
+            kprintf(ERROR, "Failed to allocate result types\n");
+            kfree(type->params);
+            return false;
+        }
+    } else {
+        type->results = NULL;
     }
     
+    // Read result types
     for (uint32_t i = 0; i < result_count; i++) {
-        if (*offset >= size) {
-            kprintf(ERROR, "Unexpected end of data while reading result types\n");
-            kfree(type->params);
-            kfree(type->results);
+        if (!type->results) {
+            kprintf(ERROR, "Invalid result types array\n");
             return false;
         }
         type->results[i] = (wasm_value_type_t)bytes[(*offset)++];
@@ -121,6 +128,13 @@ bool wasm_parse_type_section(wasm_module_t* module, const uint8_t* bytes, size_t
     // Parse each function type
     for (uint32_t i = 0; i < type_count; i++) {
         if (!parse_functype(bytes, size, offset, &module->types[i])) {
+            // Cleanup on failure
+            if (module->types[i].params) {
+                kfree(module->types[i].params);
+            }
+            if (module->types[i].results) {
+                kfree(module->types[i].results);
+            }
             // Clean up previously allocated types
             for (uint32_t j = 0; j < i; j++) {
                 kfree(module->types[j].params);
@@ -154,6 +168,8 @@ bool wasm_parse_function_section(wasm_module_t* module, const uint8_t* bytes, si
         return false;
     }
     
+    // Initialize all functions to NULL/0
+    memset(module->functions, 0, sizeof(wasm_function_t) * function_count);
     module->function_count = function_count;
     
     // Read type indices for each function
@@ -174,6 +190,7 @@ bool wasm_parse_function_section(wasm_module_t* module, const uint8_t* bytes, si
         module->functions[i].type = &module->types[type_index];
         module->functions[i].code = NULL;  // Will be set by code section
         module->functions[i].module = module;
+        module->functions[i].local_count = 0;  // Will be set by code section
     }
     
     return true;
@@ -388,6 +405,111 @@ bool wasm_parse_memory_section(wasm_module_t* module, const uint8_t* bytes, size
     return true;
 }
 
+// Parse the import section
+bool wasm_parse_import_section(wasm_module_t* module, const uint8_t* bytes, size_t size, size_t* offset) {
+    if (!bytes || !offset || !module || *offset >= size) {
+        return false;
+    }
+    
+    // Read number of imports
+    uint32_t import_count;
+    if (!read_leb128_u32(bytes, size, offset, &import_count)) {
+        kprintf(ERROR, "Failed to read import count\n");
+        return false;
+    }
+    
+    // Allocate import array
+    module->imports = kmalloc(sizeof(wasm_import_t) * import_count);
+    if (!module->imports) {
+        kprintf(ERROR, "Failed to allocate import array\n");
+        return false;
+    }
+    module->import_count = import_count;
+    
+    // Parse each import
+    for (uint32_t i = 0; i < import_count; i++) {
+        // Read module name length
+        uint32_t module_name_len;
+        if (!read_leb128_u32(bytes, size, offset, &module_name_len)) {
+            kprintf(ERROR, "Failed to read module name length for import %d\n", i);
+            kfree(module->imports);
+            return false;
+        }
+        
+        // Read module name
+        if (*offset + module_name_len > size) {
+            kprintf(ERROR, "Module name exceeds section bounds for import %d\n", i);
+            kfree(module->imports);
+            return false;
+        }
+        
+        module->imports[i].module_name = kmalloc(module_name_len + 1);
+        if (!module->imports[i].module_name) {
+            kprintf(ERROR, "Failed to allocate module name for import %d\n", i);
+            kfree(module->imports);
+            return false;
+        }
+        
+        memcpy(module->imports[i].module_name, bytes + *offset, module_name_len);
+        module->imports[i].module_name[module_name_len] = '\0';
+        *offset += module_name_len;
+        
+        // Read field name length
+        uint32_t field_name_len;
+        if (!read_leb128_u32(bytes, size, offset, &field_name_len)) {
+            kprintf(ERROR, "Failed to read field name length for import %d\n", i);
+            kfree(module->imports[i].module_name);
+            kfree(module->imports);
+            return false;
+        }
+        
+        // Read field name
+        if (*offset + field_name_len > size) {
+            kprintf(ERROR, "Field name exceeds section bounds for import %d\n", i);
+            kfree(module->imports[i].module_name);
+            kfree(module->imports);
+            return false;
+        }
+        
+        module->imports[i].field_name = kmalloc(field_name_len + 1);
+        if (!module->imports[i].field_name) {
+            kprintf(ERROR, "Failed to allocate field name for import %d\n", i);
+            kfree(module->imports[i].module_name);
+            kfree(module->imports);
+            return false;
+        }
+        
+        memcpy(module->imports[i].field_name, bytes + *offset, field_name_len);
+        module->imports[i].field_name[field_name_len] = '\0';
+        *offset += field_name_len;
+        
+        // Read import kind
+        if (*offset >= size) {
+            kprintf(ERROR, "Unexpected end of data while reading import kind\n");
+            kfree(module->imports[i].field_name);
+            kfree(module->imports[i].module_name);
+            kfree(module->imports);
+            return false;
+        }
+        module->imports[i].kind = bytes[(*offset)++];
+        
+        // For functions, read the type index
+        if (module->imports[i].kind == 0) { // Function import
+            uint32_t type_index;
+            if (!read_leb128_u32(bytes, size, offset, &type_index)) {
+                kprintf(ERROR, "Failed to read type index for import %d\n", i);
+                kfree(module->imports[i].field_name);
+                kfree(module->imports[i].module_name);
+                kfree(module->imports);
+                return false;
+            }
+            module->imports[i].type_index = type_index;
+        }
+    }
+    
+    return true;
+}
+
 // Parse a WebAssembly module
 bool wasm_parse_module(wasm_module_t* module) {
     if (!module || !module->bytes || module->size < 8) {
@@ -419,6 +541,9 @@ bool wasm_parse_module(wasm_module_t* module) {
         switch (section_id) {
             case WASM_SECTION_TYPE:
                 success = wasm_parse_type_section(module, module->bytes, module->size, &offset);
+                break;
+            case WASM_SECTION_IMPORT:
+                success = wasm_parse_import_section(module, module->bytes, module->size, &offset);
                 break;
             case WASM_SECTION_FUNCTION:
                 success = wasm_parse_function_section(module, module->bytes, module->size, &offset);

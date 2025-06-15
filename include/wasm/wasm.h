@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Forward declarations
+typedef struct wasm_instance wasm_instance_t;
+
 // WebAssembly value types
 typedef enum {
     WASM_I32 = 0x7F,
@@ -38,6 +41,14 @@ typedef struct {
     uint32_t index;
 } wasm_export_t;
 
+// WebAssembly import
+typedef struct {
+    char* module_name;
+    char* field_name;
+    uint8_t kind;  // 0 = function, 1 = table, 2 = memory, 3 = global
+    uint32_t type_index;  // For function imports, this is the type index
+} wasm_import_t;
+
 // WebAssembly function
 typedef struct {
     wasm_functype_t* type;
@@ -53,26 +64,50 @@ typedef struct {
     size_t size;
     wasm_functype_t* types;
     uint32_t type_count;
+    wasm_import_t* imports;
+    uint32_t import_count;
     wasm_function_t* functions;
     uint32_t function_count;
     wasm_export_t* exports;
     uint32_t export_count;
     uint32_t memory_initial;
     uint32_t memory_max;
+    wasm_value_t* globals;
+    uint32_t global_count;
 } wasm_module_t;
 
-// WebAssembly instance
+// Host function callback type
+typedef bool (*wasm_host_function_t)(wasm_instance_t* instance, wasm_value_t* args, uint32_t arg_count, wasm_value_t* result);
+
+// Host function definition
 typedef struct {
+    char* module_name;
+    char* field_name;
+    wasm_functype_t type;
+    wasm_host_function_t function;
+} wasm_host_function_def_t;
+
+// WebAssembly instance
+struct wasm_instance {
     wasm_module_t* module;
     void* memory;
     size_t memory_size;
     wasm_function_t* functions;
     uint32_t function_count;
-} wasm_instance_t;
+    wasm_value_t* globals;
+    uint32_t global_count;
+    wasm_host_function_t* host_functions;  // Array of host function pointers
+    uint32_t host_function_count;
+    bool should_exit;
+};
 
 // Function declarations
 wasm_module_t* wasm_module_new(const uint8_t* bytes, size_t size);
 void wasm_module_delete(wasm_module_t* module);
 wasm_instance_t* wasm_instance_new(wasm_module_t* module);
 void wasm_instance_delete(wasm_instance_t* instance);
-bool wasm_function_call(wasm_function_t* function, wasm_value_t* args, uint32_t arg_count, wasm_value_t* result); 
+bool wasm_function_call(wasm_function_t* function, wasm_value_t* args, uint32_t arg_count, wasm_value_t* result);
+
+// Host function registration
+bool wasm_register_host_function(wasm_instance_t* instance, const char* module_name, const char* field_name, 
+                               wasm_functype_t type, wasm_host_function_t function); 

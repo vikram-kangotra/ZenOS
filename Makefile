@@ -44,14 +44,28 @@ LDFLAGS := -T targets/$(ARCH)/linker.ld -melf_x86_64
 # ----------------------
 WASM_FLAGS := -O3 -s WASM=1 \
               -s EXPORTED_FUNCTIONS='["_main"]' \
-              -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
               -s ALLOW_MEMORY_GROWTH=1 \
-              -s STANDALONE_WASM=1
+              -s STANDALONE_WASM=1 \
+              -s NO_FILESYSTEM=1 \
+              -s IMPORTED_MEMORY=0 \
+              -s ENVIRONMENT='shell' \
+              -s ASSERTIONS=0 \
+              -s SAFE_HEAP=0 \
+              -s STACK_OVERFLOW_CHECK=0 \
+              -s DEMANGLE_SUPPORT=0 \
+              -s NO_FETCH=1 \
+              -s NO_ASYNCIFY=1 \
+              -s PURE_WASI=0
+
+# WebAssembly Tools
+# --------------
+WASM2WAT := wasm2wat
 
 # Directory Configuration
 # --------------------
 CPP_DIR := programs/cpp
 WASM_PROGRAMS_DIR := $(DIST_DIR)/$(ARCH)/wasm_programs
+WASM_WAT_DIR := $(DIST_DIR)/$(ARCH)/wasm_wat
 EMSDK_DIR := emsdk
 
 # Source Files
@@ -73,8 +87,24 @@ OBJ := $(ASM_SRC:$(SRC_DIR)/%.asm=$(BUILD_DIR)/%.o) \
 # WebAssembly Files
 # --------------
 WASM_TEST := $(DIST_DIR)/$(ARCH)/test.wasm
+WASM_TEST_WAT := $(DIST_DIR)/$(ARCH)/test.wat
 CPP_SRC := $(shell find $(CPP_DIR) -name '*.cpp')
 WASM_BINS := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_PROGRAMS_DIR)/%.wasm)
+WASM_WAT_FILES := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_WAT_DIR)/%.wat)
+
+# Main Targets
+# ----------
+.PHONY: all
+all: check-prerequisites $(TARGET) $(ISO) $(DISK_IMG) wat
+
+.PHONY: kernel
+kernel: $(TARGET)
+
+.PHONY: iso
+iso: $(ISO)
+
+.PHONY: disk
+disk: $(DISK_IMG)
 
 # Prerequisites Check
 # ----------------
@@ -88,20 +118,6 @@ check-prerequisites:
 	@command -v $(WAT2WASM) >/dev/null 2>&1 || { echo "Error: $(WAT2WASM) not found. Please install wabt."; exit 1; }
 	@command -v qemu-system-$(ARCH) >/dev/null 2>&1 || { echo "Error: qemu-system-$(ARCH) not found. Please install qemu."; exit 1; }
 	@echo "All prerequisites satisfied."
-
-# Main Targets
-# ----------
-.PHONY: all
-all: check-prerequisites $(TARGET) $(ISO) $(DISK_IMG)
-
-.PHONY: kernel
-kernel: $(TARGET)
-
-.PHONY: iso
-iso: $(ISO)
-
-.PHONY: disk
-disk: $(DISK_IMG)
 
 # Build Rules
 # ---------
@@ -126,7 +142,7 @@ $(ISO): $(TARGET) $(ISO_DIR)/boot/grub/grub.cfg
 
 # Disk Image Creation
 # ----------------
-$(DISK_IMG): $(WASM_TEST) $(WASM_BINS) init-submodules
+$(DISK_IMG): $(WASM_TEST) $(WASM_BINS) init-submodules wat
 	@mkdir -p $(@D)
 	@echo "Creating disk image..."
 	dd if=/dev/zero of=$@ bs=1M count=512
@@ -148,10 +164,18 @@ $(WASM_TEST): src/wasm/test/test.wat
 	@mkdir -p $(@D)
 	$(WAT2WASM) $< -o $@
 
+$(WASM_TEST_WAT): $(WASM_TEST)
+	@mkdir -p $(@D)
+	$(WASM2WAT) $< -o $@
+
 $(WASM_PROGRAMS_DIR)/%.wasm: $(CPP_DIR)/%.cpp emsdk
 	@mkdir -p $(@D)
 	@cd $(EMSDK_DIR) && . ./emsdk_env.sh && cd .. && \
 	$(WASM_CXX) $(WASM_FLAGS) $< -o $@
+
+$(WASM_WAT_DIR)/%.wat: $(WASM_PROGRAMS_DIR)/%.wasm
+	@mkdir -p $(@D)
+	$(WASM2WAT) $< -o $@
 
 # Emscripten SDK Management
 # ----------------------
@@ -223,3 +247,11 @@ help:
 	@echo "  emsdk        - Install and activate Emscripten SDK"
 	@echo "  init-submodules    - Initialize Git submodules"
 	@echo "  update-submodules  - Update Git submodules"
+	@echo "  wat          - Generate WAT files from WebAssembly binaries"
+
+# Add wat target
+.PHONY: wat
+wat: $(WASM_TEST_WAT) $(WASM_WAT_FILES)
+	@echo "Generated WAT files:"
+	@ls -l $(WASM_WAT_DIR)/*.wat
+	@ls -l $(WASM_TEST_WAT)
