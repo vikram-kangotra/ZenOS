@@ -313,8 +313,16 @@ bool vfs_chdir(const char* path) {
         if (next->open) {
             next->open(next);
         }
-        
-        vfs_destroy_node(current);
+
+        struct vfs_node* root = fat32_get_root();
+        if (current != root && current != next) {
+            vfs_destroy_node(current);
+        }
+        if (next == current) {
+            // At root, cd .., just continue
+            token = strtok(NULL, "/");
+            continue;
+        }
         current = next;
         token = strtok(NULL, "/");
     }
