@@ -285,7 +285,7 @@ static void cmd_wasm(const char* args) {
     
     // Execute the module
     uint64_t result;
-    if (!wasm_execute_function_by_name(module, "add", &result)) {
+    if (!wasm_execute_function_by_name(module, "_main", &result)) {
         kprintf(ERROR, "Failed to execute WebAssembly function\n");
     } else {
         kprintf(CLI, "WebAssembly function returned: %d\n", result);
