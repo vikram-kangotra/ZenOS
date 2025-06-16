@@ -50,8 +50,8 @@ WASM_FLAGS := -O3 -s WASM=1 \
               -s IMPORTED_MEMORY=0 \
               -s ENVIRONMENT='shell' \
               -s ASSERTIONS=0 \
-              -s SAFE_HEAP=0 \
-              -s STACK_OVERFLOW_CHECK=0 \
+              -s SAFE_HEAP=1 \
+              -s STACK_OVERFLOW_CHECK=1 \
               -s DEMANGLE_SUPPORT=0 \
               -s NO_FETCH=1 \
               -s NO_ASYNCIFY=1 \

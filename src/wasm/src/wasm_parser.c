@@ -510,6 +510,100 @@ bool wasm_parse_import_section(wasm_module_t* module, const uint8_t* bytes, size
     return true;
 }
 
+// Parse the global section
+bool wasm_parse_global_section(wasm_module_t* module, const uint8_t* bytes, size_t size, size_t* offset) {
+    if (!bytes || !offset || !module || *offset >= size) {
+        return false;
+    }
+    
+    // Read number of globals
+    uint32_t global_count;
+    if (!read_leb128_u32(bytes, size, offset, &global_count)) {
+        kprintf(ERROR, "Failed to read global count\n");
+        return false;
+    }
+    
+    // Allocate global array
+    module->globals = kmalloc(sizeof(wasm_global_t) * global_count);
+    if (!module->globals) {
+        kprintf(ERROR, "Failed to allocate global array\n");
+        return false;
+    }
+    module->global_count = global_count;
+    
+    // Parse each global
+    for (uint32_t i = 0; i < global_count; i++) {
+        // Read global type
+        if (*offset >= size) {
+            kprintf(ERROR, "Unexpected end of data while reading global type\n");
+            kfree(module->globals);
+            return false;
+        }
+        
+        uint8_t type = bytes[(*offset)++];
+        if (type != 0x7F) {  // Only support i32 for now
+            kprintf(ERROR, "Unsupported global type: 0x%02X\n", type);
+            kfree(module->globals);
+            return false;
+        }
+        
+        // Read mutability flag
+        if (*offset >= size) {
+            kprintf(ERROR, "Unexpected end of data while reading global mutability\n");
+            kfree(module->globals);
+            return false;
+        }
+        
+        uint8_t mut = bytes[(*offset)++];
+        module->globals[i].mut = (mut != 0);  // Store mutability flag
+        
+        // Read initializer expression
+        if (*offset >= size) {
+            kprintf(ERROR, "Unexpected end of data while reading global initializer\n");
+            kfree(module->globals);
+            return false;
+        }
+        
+        uint8_t opcode = bytes[(*offset)++];
+        if (opcode != 0x41) {  // i32.const
+            kprintf(ERROR, "Unsupported global initializer opcode: 0x%02X\n", opcode);
+            kfree(module->globals);
+            return false;
+        }
+        
+        // Read constant value
+        int32_t value = 0;
+        uint32_t shift = 0;
+        uint8_t byte;
+        
+        do {
+            if (*offset >= size) {
+                kprintf(ERROR, "Unexpected end of data while reading global value\n");
+                kfree(module->globals);
+                return false;
+            }
+            byte = bytes[(*offset)++];
+            value |= ((byte & 0x7F) << shift);
+            if (shift < 32 && (byte & 0x40)) {
+                value |= -(1 << shift);
+            }
+            shift += 7;
+        } while (byte & 0x80);
+        
+        // Set global value
+        module->globals[i].value.i32 = value;
+        
+        // Read end opcode
+        if (*offset >= size || bytes[(*offset)++] != 0x0B) {  // end
+            kprintf(ERROR, "Missing end opcode in global initializer\n");
+            kfree(module->globals);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 // Parse a WebAssembly module
 bool wasm_parse_module(wasm_module_t* module) {
     if (!module || !module->bytes || module->size < 8) {
@@ -556,6 +650,9 @@ bool wasm_parse_module(wasm_module_t* module) {
                 break;
             case WASM_SECTION_MEMORY:
                 success = wasm_parse_memory_section(module, module->bytes, module->size, &offset);
+                break;
+            case WASM_SECTION_GLOBAL:
+                success = wasm_parse_global_section(module, module->bytes, module->size, &offset);
                 break;
             default:
                 // Skip unknown sections

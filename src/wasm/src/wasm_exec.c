@@ -11,10 +11,14 @@ static bool execute_i32_le_s(wasm_exec_context_t* ctx);
 
 // Initialize execution context
 void wasm_exec_context_init(wasm_exec_context_t* ctx, wasm_instance_t* instance, uint32_t local_count) {
-    if (!ctx || !instance) return;
+    if (!ctx || !instance) {
+        kprintf(ERROR, "Invalid parameters in wasm_exec_context_init\n");
+        return;
+    }
     
     // Zero out the context first
     memset(ctx, 0, sizeof(wasm_exec_context_t));
+    kprintf(DEBUG, "[WASM] Initializing execution context: local_count=%u\n", local_count);
 
     ctx->instance = instance;
     ctx->local_count = local_count;
@@ -24,6 +28,8 @@ void wasm_exec_context_init(wasm_exec_context_t* ctx, wasm_instance_t* instance,
             kprintf(ERROR, "Failed to allocate locals array\n");
             return;
         }
+        // Initialize locals to 0
+        memset(ctx->locals, 0, sizeof(uint32_t) * local_count);
     } else {
         ctx->locals = NULL;
     }
@@ -48,6 +54,9 @@ void wasm_exec_context_init(wasm_exec_context_t* ctx, wasm_instance_t* instance,
         return;
     }
     ctx->block_stack_size = 0;
+    
+    kprintf(DEBUG, "[WASM] Execution context initialized: stack_capacity=%u, block_stack_capacity=%u\n",
+            ctx->stack_capacity, ctx->block_stack_capacity);
 }
 
 // Clean up execution context
@@ -69,7 +78,10 @@ void wasm_exec_context_cleanup(wasm_exec_context_t* ctx) {
 
 // Push a value onto the stack
 static bool stack_push(wasm_exec_context_t* ctx, wasm_value_t value) {
-    if (!ctx || !ctx->stack) return false;
+    if (!ctx || !ctx->stack) {
+        kprintf(ERROR, "Invalid stack context in stack_push\n");
+        return false;
+    }
     
     if (ctx->stack_size >= ctx->stack_capacity) {
         // Grow stack
@@ -87,16 +99,24 @@ static bool stack_push(wasm_exec_context_t* ctx, wasm_value_t value) {
     }
     
     ctx->stack[ctx->stack_size++] = value;
+    kprintf(DEBUG, "[WASM] Stack push: size=%u, value=%d\n", ctx->stack_size, value.i32);
     return true;
 }
 
 // Pop a value from the stack
 static bool stack_pop(wasm_exec_context_t* ctx, wasm_value_t* value) {
-    if (!ctx || !ctx->stack || !value || ctx->stack_size == 0) {
+    if (!ctx || !ctx->stack || !value) {
+        kprintf(ERROR, "Invalid parameters in stack_pop\n");
+        return false;
+    }
+    
+    if (ctx->stack_size == 0) {
+        kprintf(ERROR, "Stack underflow in stack_pop\n");
         return false;
     }
     
     *value = ctx->stack[--ctx->stack_size];
+    kprintf(DEBUG, "[WASM] Stack pop: size=%u, value=%d\n", ctx->stack_size, value->i32);
     return true;
 }
 
@@ -493,6 +513,22 @@ static bool read_leb128_u32(const uint8_t* bytes, size_t size, size_t* offset, u
     return true;
 }
 
+// Add this function before wasm_execute_instruction
+static bool execute_i32_eqz(wasm_exec_context_t* ctx) {
+    if (ctx->stack_size < 1) {
+        kprintf(ERROR, "Stack underflow in i32.eqz\n");
+        return false;
+    }
+    
+    // Get the value from the top of the stack
+    int32_t value = ctx->stack[ctx->stack_size - 1].i32;
+    
+    // Replace it with the result of the comparison
+    ctx->stack[ctx->stack_size - 1].i32 = (value == 0) ? 1 : 0;
+    
+    return true;
+}
+
 // Execute a single WebAssembly instruction
 bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
     if (!ctx || !ctx->pc) return false;
@@ -773,7 +809,7 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
             uint32_t global_idx = 0;
             uint32_t shift = 0;
             uint8_t byte;
-            
+
             do {
                 if (!ctx->pc) {
                     kprintf(ERROR, "Unexpected end of code while reading global index\n");
@@ -783,22 +819,22 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 global_idx |= ((byte & 0x7F) << shift);
                 shift += 7;
             } while (byte & 0x80);
-            
+
             if (global_idx >= ctx->instance->global_count) {
                 kprintf(ERROR, "Invalid global index: %d (max: %d)\n", 
                         global_idx, ctx->instance->global_count - 1);
                 return false;
             }
-            
+
             // Push global value onto stack
-            return stack_push(ctx, ctx->instance->globals[global_idx]);
+            return stack_push(ctx, ctx->instance->globals[global_idx].value);
         }
-        
+
         case WASM_OP_GLOBAL_SET: {
             uint32_t global_idx = 0;
             uint32_t shift = 0;
             uint8_t byte;
-            
+
             do {
                 if (!ctx->pc) {
                     kprintf(ERROR, "Unexpected end of code while reading global index\n");
@@ -808,21 +844,24 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 global_idx |= ((byte & 0x7F) << shift);
                 shift += 7;
             } while (byte & 0x80);
-            
+
             if (global_idx >= ctx->instance->global_count) {
                 kprintf(ERROR, "Invalid global index: %d (max: %d)\n", 
                         global_idx, ctx->instance->global_count - 1);
                 return false;
             }
-            
+            // Check if global is mutable
+            if (!ctx->instance->globals[global_idx].mut) {
+                kprintf(ERROR, "Attempt to set immutable global %d\n", global_idx);
+                return false;
+            }
             // Pop value from stack and set global
             wasm_value_t value;
             if (!stack_pop(ctx, &value)) {
                 kprintf(ERROR, "Stack underflow while setting global %d\n", global_idx);
                 return false;
             }
-            
-            ctx->instance->globals[global_idx] = value;
+            ctx->instance->globals[global_idx].value = value;
             return true;
         }
         
@@ -874,6 +913,8 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
             return execute_f64_const(ctx);
             
         // Integer comparison
+        case WASM_OP_I32_EQZ:
+            return execute_i32_eqz(ctx);
         case WASM_OP_I32_EQ:
             return execute_i32_eq(ctx);
         case WASM_OP_I32_NE:
@@ -922,17 +963,29 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 shift += 7;
             } while (byte & 0x80);
 
+            kprintf(DEBUG, "[WASM] CALL: func_idx=%u, stack_size=%u\n", func_idx, ctx->stack_size);
+
             // Host function call
             if (func_idx < ctx->instance->module->import_count) {
-                kprintf(DEBUG, "[WASM] CALL: func_idx=%u, host_count=%u, function_count=%u\n", 
+                kprintf(DEBUG, "[WASM] Host function call: func_idx=%u, host_count=%u, function_count=%u\n", 
                        func_idx, ctx->instance->host_function_count, ctx->instance->function_count);
                 // Prepare arguments from stack
                 uint32_t arg_count = ctx->instance->module->types[ctx->instance->module->imports[func_idx].type_index].param_count;
+                kprintf(DEBUG, "[WASM] Host function requires %u arguments\n", arg_count);
+                
+                // Check if we have enough arguments on the stack
+                if (ctx->stack_size < arg_count) {
+                    kprintf(ERROR, "Stack underflow: need %d arguments but only have %d\n", 
+                           arg_count, ctx->stack_size);
+                    return false;
+                }
+                
                 wasm_value_t* args = kmalloc(sizeof(wasm_value_t) * arg_count);
                 if (!args) {
                     kprintf(ERROR, "Failed to allocate arguments for host function call\n");
                     return false;
                 }
+                
                 // Pop arguments from stack in reverse order
                 for (int32_t i = arg_count - 1; i >= 0; i--) {
                     if (!stack_pop(ctx, &args[i])) {
@@ -941,11 +994,13 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                         return false;
                     }
                 }
+                
                 kprintf(DEBUG, "[WASM] Host function args: ");
                 for (uint32_t i = 0; i < arg_count; i++) {
                     kprintf(DEBUG, "%d ", args[i].i32);
                 }
                 kprintf(DEBUG, "\n");
+                
                 // Call the host function
                 wasm_host_function_t host_func = ctx->instance->host_functions[0];  // We only have one host function (proc_exit)
                 wasm_value_t result;
@@ -955,6 +1010,7 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                     kprintf(ERROR, "Host function call failed\n");
                     return false;
                 }
+                
                 kprintf(DEBUG, "[WASM] Host function call returned: %d\n", result.i32);
                 // Push result onto stack if function returns a value
                 if (ctx->instance->module->types[ctx->instance->module->imports[func_idx].type_index].result_count > 0) {
@@ -962,21 +1018,35 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 }
                 return true;
             }
+            
             // Regular function call
             if (func_idx >= ctx->instance->function_count) {
                 kprintf(ERROR, "Invalid function index: %d (max: %d)\n", 
                         func_idx, ctx->instance->function_count - 1);
                 return false;
             }
+            
             kprintf(DEBUG, "[WASM] Regular function call: idx=%u\n", func_idx);
+            
             // Get the function to call
             wasm_function_t* callee = &ctx->instance->functions[func_idx];
+            kprintf(DEBUG, "[WASM] Function type: param_count=%u, result_count=%u\n", 
+                    callee->type->param_count, callee->type->result_count);
+            
+            // Check if we have enough arguments on the stack
+            if (ctx->stack_size < callee->type->param_count) {
+                kprintf(ERROR, "Stack underflow: need %d arguments but only have %d\n", 
+                       callee->type->param_count, ctx->stack_size);
+                return false;
+            }
+            
             // Prepare arguments from stack
             wasm_value_t* args = kmalloc(sizeof(wasm_value_t) * callee->type->param_count);
             if (!args) {
                 kprintf(ERROR, "Failed to allocate arguments for function call\n");
                 return false;
             }
+            
             // Pop arguments from stack in reverse order
             for (int32_t i = callee->type->param_count - 1; i >= 0; i--) {
                 if (!stack_pop(ctx, &args[i])) {
@@ -985,11 +1055,13 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                     return false;
                 }
             }
+            
             kprintf(DEBUG, "[WASM] Regular function args: ");
             for (uint32_t i = 0; i < callee->type->param_count; i++) {
                 kprintf(DEBUG, "%d ", args[i].i32);
             }
             kprintf(DEBUG, "\n");
+            
             // Call the function
             wasm_value_t result;
             bool success = wasm_execute_function(callee, args, callee->type->param_count, &result);
@@ -998,6 +1070,7 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 kprintf(ERROR, "Failed to execute called function\n");
                 return false;
             }
+            
             kprintf(DEBUG, "[WASM] Regular function call returned: %d\n", result.i32);
             // Push result onto stack if function returns a value
             if (callee->type->result_count > 0) {

@@ -47,6 +47,7 @@ typedef enum {
     WASM_OP_F64_CONST = 0x44,
     
     // Integer comparison
+    WASM_OP_I32_EQZ = 0x45,
     WASM_OP_I32_EQ = 0x46,
     WASM_OP_I32_NE = 0x47,
     WASM_OP_I32_LT_S = 0x48,

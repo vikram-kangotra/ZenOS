@@ -272,7 +272,7 @@ wasm_instance_t* wasm_instance_new(wasm_module_t* module) {
     // Initialize globals
     instance->global_count = module->global_count;
     if (module->global_count > 0) {
-        instance->globals = kmalloc(sizeof(wasm_value_t) * module->global_count);
+        instance->globals = kmalloc(sizeof(wasm_global_t) * module->global_count);
         if (!instance->globals) {
             kprintf(ERROR, "Failed to allocate globals array\n");
             if (instance->memory) {
@@ -285,7 +285,7 @@ wasm_instance_t* wasm_instance_new(wasm_module_t* module) {
             return NULL;
         }
         memcpy(instance->globals, module->globals, 
-               sizeof(wasm_value_t) * module->global_count);
+               sizeof(wasm_global_t) * module->global_count);
     } else {
         instance->globals = NULL;
     }

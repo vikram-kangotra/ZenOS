@@ -58,6 +58,12 @@ typedef struct {
     uint32_t local_count;  // Total number of locals (parameters + local variables)
 } wasm_function_t;
 
+// WebAssembly global variable
+typedef struct {
+    wasm_value_t value;
+    bool mut;  // true for mutable, false for immutable
+} wasm_global_t;
+
 // WebAssembly module
 typedef struct {
     uint8_t* bytes;
@@ -72,7 +78,7 @@ typedef struct {
     uint32_t export_count;
     uint32_t memory_initial;
     uint32_t memory_max;
-    wasm_value_t* globals;
+    wasm_global_t* globals;  // Changed from wasm_value_t* to wasm_global_t*
     uint32_t global_count;
 } wasm_module_t;
 
@@ -94,7 +100,7 @@ struct wasm_instance {
     size_t memory_size;
     wasm_function_t* functions;
     uint32_t function_count;
-    wasm_value_t* globals;
+    wasm_global_t* globals;  // Changed from wasm_value_t* to wasm_global_t*
     uint32_t global_count;
     wasm_host_function_t* host_functions;  // Array of host function pointers
     uint32_t host_function_count;
