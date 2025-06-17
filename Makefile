@@ -50,8 +50,8 @@ WASM_FLAGS := -O3 -s WASM=1 \
               -s IMPORTED_MEMORY=0 \
               -s ENVIRONMENT='shell' \
               -s ASSERTIONS=0 \
-              -s SAFE_HEAP=1 \
-              -s STACK_OVERFLOW_CHECK=1 \
+              -s SAFE_HEAP=0 \
+              -s STACK_OVERFLOW_CHECK=0 \
               -s DEMANGLE_SUPPORT=0 \
               -s NO_FETCH=1 \
               -s NO_ASYNCIFY=1 \
@@ -86,8 +86,6 @@ OBJ := $(ASM_SRC:$(SRC_DIR)/%.asm=$(BUILD_DIR)/%.o) \
 
 # WebAssembly Files
 # --------------
-WASM_TEST := $(DIST_DIR)/$(ARCH)/test.wasm
-WASM_TEST_WAT := $(DIST_DIR)/$(ARCH)/test.wat
 CPP_SRC := $(shell find $(CPP_DIR) -name '*.cpp')
 WASM_BINS := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_PROGRAMS_DIR)/%.wasm)
 WASM_WAT_FILES := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_WAT_DIR)/%.wat)
@@ -142,7 +140,7 @@ $(ISO): $(TARGET) $(ISO_DIR)/boot/grub/grub.cfg
 
 # Disk Image Creation
 # ----------------
-$(DISK_IMG): $(WASM_TEST) $(WASM_BINS) init-submodules wat
+$(DISK_IMG): $(WASM_BINS) init-submodules wat
 	@mkdir -p $(@D)
 	@echo "Creating disk image..."
 	dd if=/dev/zero of=$@ bs=1M count=512
@@ -152,7 +150,6 @@ $(DISK_IMG): $(WASM_TEST) $(WASM_BINS) init-submodules wat
 	mmd -i $@ ::/dev ::/proc ::/bin ::/etc ::/lib ::/mnt ::/opt ::/root ::/tmp ::/wasm
 	@echo "Copying files..."
 	mcopy -i $@ Readme.md ::/Readme.md
-	mcopy -i $@ $(WASM_TEST) ::/test.wsm
 	mcopy -i $@ $(WASM_PROGRAMS_DIR)/*.wasm ::/wasm/
 	@echo "Verifying disk image..."
 	mdir -i $@ ::
@@ -160,14 +157,6 @@ $(DISK_IMG): $(WASM_TEST) $(WASM_BINS) init-submodules wat
 
 # WebAssembly Compilation
 # --------------------
-$(WASM_TEST): src/wasm/test/test.wat
-	@mkdir -p $(@D)
-	$(WAT2WASM) $< -o $@
-
-$(WASM_TEST_WAT): $(WASM_TEST)
-	@mkdir -p $(@D)
-	$(WASM2WAT) $< -o $@
-
 $(WASM_PROGRAMS_DIR)/%.wasm: $(CPP_DIR)/%.cpp emsdk
 	@mkdir -p $(@D)
 	@cd $(EMSDK_DIR) && . ./emsdk_env.sh && cd .. && \
@@ -251,7 +240,7 @@ help:
 
 # Add wat target
 .PHONY: wat
-wat: $(WASM_TEST_WAT) $(WASM_WAT_FILES)
+wat: $(WASM_WAT_FILES)
 	@echo "Generated WAT files:"
 	@ls -l $(WASM_WAT_DIR)/*.wat
 	@ls -l $(WASM_TEST_WAT)

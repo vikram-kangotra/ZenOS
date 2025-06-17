@@ -38,7 +38,7 @@ static void cmd_mkdir(const char* args);
 static void cmd_touch(const char* args);
 static void cmd_cat(const char* args);
 static void cmd_shutdown(const char* args);
-static void cmd_wasm(const char* args);
+static void cmd_wasmrun(const char* args);
 static void cmd_wasmtest(const char* args);
 
 // Command table
@@ -56,7 +56,7 @@ static const struct Command commands[] = {
     {"touch", cmd_touch, "Create empty file"},
     {"cat", cmd_cat, "Display file contents"},
     {"shutdown", cmd_shutdown, "Shutdown the system"},
-    {"wasm", cmd_wasm, "Run a WebAssembly file"},
+    {"wasmrun", cmd_wasmrun, "Run a WebAssembly file"},
     {"wasmtest", cmd_wasmtest, "Run WebAssembly tests"},
     {NULL, NULL, NULL}  // End marker
 };
@@ -151,9 +151,10 @@ static void cmd_ls(const char* args) {
     struct vfs_node* entry;
     
     while ((entry = vfs_readdir(dir, index++)) != NULL) {
-        kprintf(CLI, "%s\n", entry->name);
+        kprintf(CLI, "%s ", entry->name);
         vfs_destroy_node(entry);
     }
+    kprintf(CLI, "\n");
 }
 
 static void cmd_cd(const char* args) {
@@ -270,7 +271,7 @@ static void cmd_shutdown(const char* args) {
     asm volatile("hlt");
 }
 
-static void cmd_wasm(const char* args) {
+static void cmd_wasmrun(const char* args) {
     if (!args || !*args) {
         kprintf(ERROR, "Usage: wasm <file.wasm>\n");
         return;

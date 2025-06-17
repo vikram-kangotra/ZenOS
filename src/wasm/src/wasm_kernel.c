@@ -100,6 +100,7 @@ bool wasm_execute_function_by_name_with_args(wasm_module_t* module, const char* 
     for (size_t i = 0; i < module->export_count; i++) {
         if (strcmp(module->exports[i].name, function_name) == 0) {
             func_idx = module->exports[i].index;
+            kprintf(DEBUG, "[WASM] Found function '%s' at export index %d\n", function_name, i);
             break;
         }
     }
@@ -108,6 +109,10 @@ bool wasm_execute_function_by_name_with_args(wasm_module_t* module, const char* 
         kprintf(ERROR, "Function '%s' not found in module\n", function_name);
         return false;
     }
+
+    kprintf(DEBUG, "[WASM] Function index before import adjustment: %d\n", func_idx);
+    // func_idx -= module->import_count;
+    kprintf(DEBUG, "[WASM] Function index after import adjustment: %d\n", func_idx);
 
     // Create instance and execute
     wasm_instance_t* instance = wasm_instance_new(module);
@@ -118,6 +123,9 @@ bool wasm_execute_function_by_name_with_args(wasm_module_t* module, const char* 
 
     // Prepare arguments and result
     wasm_function_t* function = &instance->functions[func_idx];
+    kprintf(DEBUG, "[WASM] Function type: param_count=%u, result_count=%u\n", 
+            function->type->param_count, function->type->result_count);
+    
     wasm_value_t wasm_result = {0};
     bool success = wasm_execute_function(function, args, arg_count, &wasm_result);
     if (result) *result = wasm_result.i64;
@@ -130,7 +138,7 @@ void wasm_test(void) {
 
     // Load test module
     wasm_module_t* module = NULL;
-    if (!wasm_load_module("/TEST.WSM", &module)) {
+    if (!wasm_load_module("/WASM/TEST~1.WAS", &module)) {
         kprintf(ERROR, "Failed to load test module\n");
         return;
     }
@@ -138,11 +146,17 @@ void wasm_test(void) {
     // Run parser test before any execution
     wasm_parser_test(module->bytes, module->size);
 
+    bool failed = false;
+
     // Test add function
     uint64_t result;
     wasm_value_t add_args[2] = { {.i32 = 2}, {.i32 = 3} };
     if (wasm_execute_function_by_name_with_args(module, "add", add_args, 2, &result)) {
         kprintf(INFO, "add(2, 3) = %d\n", result);
+        if (result != 5) {
+            kprintf(ERROR, "wrong output\n");
+            failed = true;
+        }
     } else {
         kprintf(ERROR, "Failed to execute add function\n");
     }
@@ -151,11 +165,20 @@ void wasm_test(void) {
     wasm_value_t mul_args[2] = { {.i32 = 4}, {.i32 = 5} };
     if (wasm_execute_function_by_name_with_args(module, "mul", mul_args, 2, &result)) {
         kprintf(INFO, "mul(4, 5) = %d\n", result);
+        if (result != 20) {
+            kprintf(ERROR, "wrong output\n");
+            failed = true;
+        }
     } else {
         kprintf(ERROR, "Failed to execute mul function\n");
     }
 
     // Cleanup
     wasm_module_delete(module);
-    kprintf(INFO, "WebAssembly runtime test completed\n");
+
+    if (failed) {
+        kprintf(ERROR, "WebAssembly runtime test Failed\n");
+    } else {
+        kprintf(INFO, "WebAssembly runtime test completed\n");
+    }
 } 

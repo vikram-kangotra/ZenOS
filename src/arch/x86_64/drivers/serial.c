@@ -32,7 +32,7 @@ void serial_configure_buffer(uint16_t com) {
 }
 
 void serial_configure_modem(uint16_t com) {
-    outb(SERIAL_MODEM_COMMAND_PORT(com), 0X1E); // Set in loopback mode, test the serial chip
+    outb(SERIAL_MODEM_COMMAND_PORT(com), 0x0F);
 }
 
 uint8_t serial_is_transmit_fifo_empty(uint16_t com) {
@@ -41,21 +41,27 @@ uint8_t serial_is_transmit_fifo_empty(uint16_t com) {
 
 int init_serial() {
     serial_configure_interrupt(SERIAL_COM1_BASE);
-
     serial_configure_baud_rate(SERIAL_COM1_BASE, 3);
     serial_configure_line(SERIAL_COM1_BASE);
     serial_configure_buffer(SERIAL_COM1_BASE);
-    serial_configure_modem(SERIAL_COM1_BASE);
     
-    outb(SERIAL_DATA_PORT(SERIAL_COM1_BASE), 0xAE); // Test serial chip (send byte 0xAE and check if serial returns same byte)
+    outb(SERIAL_MODEM_COMMAND_PORT(SERIAL_COM1_BASE), 0x1E);
+    outb(SERIAL_DATA_PORT(SERIAL_COM1_BASE), 0xAE);
     if (inb(SERIAL_DATA_PORT(SERIAL_COM1_BASE)) != 0xAE) {
         return -1;
     }
-    outb(SERIAL_MODEM_COMMAND_PORT(SERIAL_COM1_BASE), 0x0F); // Test passed, (normal operation mode)
+    
+    serial_configure_modem(SERIAL_COM1_BASE);
     return 0;
 }
 
 void serial_write_char(char ch) {
+    // Wait for the transmit FIFO to be empty
     while (!serial_is_transmit_fifo_empty(SERIAL_COM1_BASE));
+    
+    // Write the character
     outb(SERIAL_DATA_PORT(SERIAL_COM1_BASE), ch);
+    
+    // Wait for the character to be fully transmitted
+    while (!serial_is_transmit_fifo_empty(SERIAL_COM1_BASE));
 }

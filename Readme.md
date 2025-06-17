@@ -64,7 +64,7 @@ ZenOS includes a native WebAssembly runtime that supports:
 2. Copy it to the ZenOS filesystem
 3. Use the `wasm` command to execute it:
 ```
-> wasm test.wsm
+> wasmrun /wasm/test~1.was
 ```
 
 ### Built-in WebAssembly Tests
