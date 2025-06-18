@@ -28,7 +28,6 @@ AS := nasm
 CC := gcc
 LD := ld
 GRUB_MKRESCUE := grub-mkrescue
-WAT2WASM := wat2wasm
 CXX := g++
 WASM_CXX := em++
 
@@ -114,7 +113,6 @@ check-prerequisites:
 	@command -v $(CC) >/dev/null 2>&1 || { echo "Error: $(CC) not found. Please install gcc."; exit 1; }
 	@command -v $(LD) >/dev/null 2>&1 || { echo "Error: $(LD) not found. Please install binutils."; exit 1; }
 	@command -v $(GRUB_MKRESCUE) >/dev/null 2>&1 || { echo "Error: $(GRUB_MKRESCUE) not found. Please install grub."; exit 1; }
-	@command -v $(WAT2WASM) >/dev/null 2>&1 || { echo "Error: $(WAT2WASM) not found. Please install wabt."; exit 1; }
 	@command -v qemu-system-$(ARCH) >/dev/null 2>&1 || { echo "Error: qemu-system-$(ARCH) not found. Please install qemu."; exit 1; }
 	@echo "All prerequisites satisfied."
 
