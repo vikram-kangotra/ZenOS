@@ -37,7 +37,7 @@ ASMFLAGS := -f elf64 -I $(ASM_DIR)
 CFLAGS := -O3 -Iinclude -m64 -nostdlib -nostdinc -fno-builtin -fno-stack-protector \
           -nostartfiles -nodefaultlibs -Wall -Wextra -Werror -mno-red-zone \
           -mgeneral-regs-only \
-		  -DDEBUG
+		  -DDEBUG_MODE
 LDFLAGS := -T targets/$(ARCH)/linker.ld -melf_x86_64
 
 # WebAssembly Configuration
