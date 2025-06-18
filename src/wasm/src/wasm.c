@@ -211,7 +211,7 @@ static bool host_print(wasm_instance_t* instance, wasm_value_t* args, uint32_t a
     
     // Get the value to print from the first argument
     int32_t value = args[0].i32;
-    kprintf(INFO, "WebAssembly print: %d\n", value);
+    kprintf(CLI, "WebAssembly print: %d\n", value);
     
     return true;
 }
