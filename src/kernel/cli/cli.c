@@ -35,6 +35,7 @@ static void cmd_uptime(const char* args);
 static void cmd_ls(const char* args);
 static void cmd_cd(const char* args);
 static void cmd_mkdir(const char* args);
+static void cmd_rmdir(const char* args);
 static void cmd_touch(const char* args);
 static void cmd_cat(const char* args);
 static void cmd_shutdown(const char* args);
@@ -53,6 +54,7 @@ static const struct Command commands[] = {
     {"ls", cmd_ls, "List directory contents"},
     {"cd", cmd_cd, "Change directory"},
     {"mkdir", cmd_mkdir, "Create directory"},
+    {"rmdir", cmd_rmdir, "Remove directory"},
     {"touch", cmd_touch, "Create empty file"},
     {"cat", cmd_cat, "Display file contents"},
     {"shutdown", cmd_shutdown, "Shutdown the system"},
@@ -212,6 +214,50 @@ static void cmd_mkdir(const char* args) {
     
     kprintf(CLI, "Directory %s created\n", args);
 }
+
+static void cmd_rmdir(const char* args) {
+    if (!args || !*args) {
+        kprintf(ERROR, "Usage: rmdir <directory>\n");
+        return;
+    }
+
+    // Get the block device
+    struct block_device* blk_dev = block_device_get("ata0");
+    if (!blk_dev) {
+        kprintf(ERROR, "No block device available\n");
+        return;
+    }
+
+    // Handle relative path
+    char full_path[256];
+    if (args[0] != '/') {
+        struct vfs_node* cwd = vfs_getcwd();
+        if (!cwd) {
+            kprintf(ERROR, "Failed to get current directory\n");
+            return;
+        }
+
+        if (cwd->name[0] == '\0' || strcmp(cwd->name, "/") == 0) {
+            strncpy(full_path, "/", sizeof(full_path));
+            strncat(full_path, args, sizeof(full_path) - strlen(full_path) - 1);
+        } else {
+            strncpy(full_path, cwd->name, sizeof(full_path));
+            strncat(full_path, "/", sizeof(full_path) - strlen(full_path) - 1);
+            strncat(full_path, args, sizeof(full_path) - strlen(full_path) - 1);
+        }
+    } else {
+        strncpy(full_path, args, sizeof(full_path));
+    }
+
+    // Remove the directory using FAT32
+    if (!fat32_rmdir(blk_dev, full_path)) {
+        kprintf(ERROR, "Failed to remove directory %s\n", args);
+        return;
+    }
+
+    kprintf(CLI, "Directory %s removed\n", args);
+}
+
 
 static void cmd_touch(const char* args) {
     if (!args || !*args) {
