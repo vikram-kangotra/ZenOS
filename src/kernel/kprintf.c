@@ -3,8 +3,13 @@
 #include "kernel/kprintf.h"
 #include "stdarg.h"
 
-void kputchar(char ch) {
-    vga_write_char(ch);
+void kputchar(enum LogLevel level, char ch) {
+    (void) level;
+#ifndef DEBUG_MODE
+    if (level != DEBUG) {
+#endif
+        vga_write_char(ch);
+#ifndef DEBUG_MODE
     serial_write_char(ch);
 }
 
@@ -18,7 +23,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
     // Print prefix
     const char* prefix = config->prefix;
     while (*prefix) {
-        kputchar(*prefix++);
+        kputchar(level, *prefix++);
     }
 
     // Parse and print format string
@@ -53,13 +58,13 @@ void kprintf(enum LogLevel level, const char* format, ...) {
             switch (*p) {
                 case 'c': {
                     char ch = va_arg(args, int);
-                    kputchar(ch);
+                    kputchar(level, ch);
                     break;
                 }
                 case 's': {
                     const char* str = va_arg(args, const char*);
                     while (*str && str_max_length != 0) {
-                        kputchar(*str++);
+                        kputchar(level, *str++);
                         str_max_length--;
                     }
                     break;
@@ -67,7 +72,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                 case 'd': {
                     int value = va_arg(args, int);
                     if (value < 0) {
-                        kputchar('-');
+                        kputchar(level, '-');
                         value = -value;
                     }
                     char buffer[12];
@@ -79,12 +84,12 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                     
                     // Apply padding
                     while (i < padding) {
-                        kputchar('0');
+                        kputchar(level, '0');
                         padding--;
                     }
                     
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
@@ -99,12 +104,12 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                     
                     // Apply padding
                     while (i < padding) {
-                        kputchar('0');
+                        kputchar(level, '0');
                         padding--;
                     }
                     
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
@@ -118,13 +123,13 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 16;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
                 case 'p': {
                     uintptr_t ptr = va_arg(args, uintptr_t);
-                    kputchar('0'); kputchar('x');
+                    kputchar(level, '0'); kputchar(level, 'x');
                     char buffer[16];
                     int i = 0;
                     do {
@@ -133,7 +138,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         ptr /= 16;
                     } while (ptr);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
@@ -146,7 +151,7 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value /= 8;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
@@ -159,20 +164,20 @@ void kprintf(enum LogLevel level, const char* format, ...) {
                         value >>= 1;
                     } while (value);
                     while (i--) {
-                        kputchar(buffer[i]);
+                        kputchar(level, buffer[i]);
                     }
                     break;
                 }
                 case '%': {
-                    kputchar('%');
+                    kputchar(level, '%');
                     break;
                 }
                 default:
-                    kputchar(*p);
+                    kputchar(level, *p);
                     break;
             }
         } else {
-            kputchar(*p);
+            kputchar(level, *p);
         }
     }
 

@@ -36,7 +36,7 @@ static void cmd_ls(const char* args);
 static void cmd_cd(const char* args);
 static void cmd_mkdir(const char* args);
 static void cmd_rmdir(const char* args);
-static void cmd_touch(const char* args);
+// static void cmd_touch(const char* args);
 static void cmd_cat(const char* args);
 static void cmd_shutdown(const char* args);
 static void cmd_wasmrun(const char* args);
@@ -55,7 +55,7 @@ static const struct Command commands[] = {
     {"cd", cmd_cd, "Change directory"},
     {"mkdir", cmd_mkdir, "Create directory"},
     {"rmdir", cmd_rmdir, "Remove directory"},
-    {"touch", cmd_touch, "Create empty file"},
+    /*{"touch", cmd_touch, "Create empty file"}, */ // removing touch temporarily cause it doesn't work
     {"cat", cmd_cat, "Display file contents"},
     {"shutdown", cmd_shutdown, "Shutdown the system"},
     {"wasmrun", cmd_wasmrun, "Run a WebAssembly file"},
@@ -258,7 +258,7 @@ static void cmd_rmdir(const char* args) {
     kprintf(CLI, "Directory %s removed\n", args);
 }
 
-
+/*
 static void cmd_touch(const char* args) {
     if (!args || !*args) {
         kprintf(ERROR, "Usage: touch <file>\n");
@@ -273,6 +273,7 @@ static void cmd_touch(const char* args) {
     
     vfs_destroy_node(file);
 }
+*/
 
 static void cmd_cat(const char* args) {
     if (!args || !*args) {

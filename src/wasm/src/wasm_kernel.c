@@ -110,10 +110,6 @@ bool wasm_execute_function_by_name_with_args(wasm_module_t* module, const char* 
         return false;
     }
 
-    kprintf(DEBUG, "[WASM] Function index before import adjustment: %d\n", func_idx);
-    // func_idx -= module->import_count;
-    kprintf(DEBUG, "[WASM] Function index after import adjustment: %d\n", func_idx);
-
     // Create instance and execute
     wasm_instance_t* instance = wasm_instance_new(module);
     if (!instance) {

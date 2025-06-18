@@ -37,6 +37,40 @@ void rtc_get_time(struct DateTime* dt) {
         dt->month = bcd_to_binary(dt->month);
         dt->year = bcd_to_binary(dt->year);
     }
+    
+    // Add 5 hours and 30 minutes
+    dt->minutes += 30;
+    if (dt->minutes >= 60) {
+        dt->minutes -= 60;
+        dt->hours += 1;
+    }
+    
+    dt->hours += 5;
+    if (dt->hours >= 24) {
+        dt->hours -= 24;
+        dt->day += 1;
+        
+        // Handle month rollover
+        int days_in_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+        
+        // Check for leap year
+        if (dt->month == 2) {
+            if ((dt->year % 4 == 0 && dt->year % 100 != 0) || (dt->year % 400 == 0)) {
+                days_in_month[1] = 29; // February in leap year
+            }
+        }
+        
+        if (dt->day > days_in_month[dt->month - 1]) {
+            dt->day = 1;
+            dt->month += 1;
+            
+            // Handle year rollover
+            if (dt->month > 12) {
+                dt->month = 1;
+                dt->year += 1;
+            }
+        }
+    }
 }
 
 // Check if RTC is updating

@@ -5,7 +5,9 @@ extern "C" void print(int a);
 
 int main() {
 
-    print(42);
+    for (int i = 0; i < 10; ++i) {
+        print(i);
+    }
 
     return 0;
 }
