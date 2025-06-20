@@ -784,55 +784,120 @@ bool fat32_mkdir(struct block_device* dev, const char* path) {
 // Remove directory
 bool fat32_rmdir(struct block_device* dev, const char* path) {
     if (!fs_private || !path) {
+        kprintf(ERROR, "fat32_rmdir: Invalid parameters\n");
         return false;
     }
 
-    // Open directory
+    // Open directory to be deleted
     struct fat32_file* dir = fat32_open(dev, path);
     if (!dir || !dir->is_directory) {
+        kprintf(ERROR, "fat32_rmdir: Path is not a directory\n");
         return false;
     }
-    
-    // Check if directory is empty
+
+    // Check if directory is empty (excluding "." and "..")
     struct fat32_dir_entry entry;
-    if (fat32_readdir(dir, &entry)) {
-        fat32_close(dir);
-        return false;  // Directory not empty
+    while (fat32_readdir(dir, &entry)) {
+        if (entry.name[0] != '.' && entry.name[0] != 0xE5) {
+            kprintf(ERROR, "fat32_rmdir: Directory not empty\n");
+            fat32_close(dir);
+            return false;
+        }
     }
-    
-    // Mark directory entry as deleted
-    uint8_t sector[512];
-    if (!read_cluster(fs_private, dir->current_cluster, sector)) {
+
+    // Extract parent path and name
+    char* path_copy = strdup(path);
+    if (!path_copy) {
         fat32_close(dir);
         return false;
     }
-    
-    struct fat32_dir_entry* entries = (struct fat32_dir_entry*)sector;
-    uint32_t entries_per_sector = 512 / sizeof(struct fat32_dir_entry);
-    
-    // Find directory entry
-    uint32_t i;
-    for (i = 0; i < entries_per_sector; i++) {
-        if (strncmp((char*)entries[i].name, path, 11) == 0) {
+
+    char* last_slash = strrchr(path_copy, '/');
+    char* dir_name;
+    struct fat32_file* parent;
+
+    if (!last_slash) {
+        // No slash -> root directory is parent
+        dir_name = path_copy;
+        parent = fat32_open(dev, "/");
+    } else if (last_slash == path_copy) {
+        dir_name = last_slash + 1;
+        parent = fat32_open(dev, "/");
+    } else {
+        *last_slash = '\0';
+        dir_name = last_slash + 1;
+        parent = fat32_open(dev, path_copy);
+    }
+
+    if (!parent || !parent->is_directory) {
+        kprintf(ERROR, "fat32_rmdir: Failed to open parent directory\n");
+        fat32_close(dir);
+        kfree(path_copy);
+        return false;
+    }
+
+    // Read parent directory cluster
+    uint8_t* buffer = kmalloc(fs_private->bytes_per_cluster);
+    if (!buffer) {
+        fat32_close(dir);
+        fat32_close(parent);
+        kfree(path_copy);
+        return false;
+    }
+
+    if (!read_cluster(fs_private, parent->current_cluster, buffer)) {
+        kfree(buffer);
+        fat32_close(dir);
+        fat32_close(parent);
+        kfree(path_copy);
+        return false;
+    }
+
+    struct fat32_dir_entry* entries = (struct fat32_dir_entry*)buffer;
+    uint32_t entries_per_cluster = fs_private->bytes_per_cluster / sizeof(struct fat32_dir_entry);
+
+    // Convert dir_name to 8.3
+    char name83[11];
+    convert_to_83_name(dir_name, name83);
+
+    // Find and mark as deleted
+    bool found = false;
+    for (uint32_t i = 0; i < entries_per_cluster; i++) {
+        if (memcmp(entries[i].name, name83, 11) == 0) {
+            entries[i].name[0] = 0xE5;
+            found = true;
             break;
         }
     }
-    
-    if (i >= entries_per_sector) {
+
+    if (!found) {
+        kprintf(ERROR, "fat32_rmdir: Directory entry not found in parent\n");
+        kfree(buffer);
         fat32_close(dir);
+        fat32_close(parent);
+        kfree(path_copy);
         return false;
     }
-    
-    // Mark as deleted
-    entries[i].name[0] = 0xE5;
-    if (!write_cluster(fs_private, dir->current_cluster, sector)) {
+
+    // Write back parent cluster
+    if (!write_cluster(fs_private, parent->current_cluster, buffer)) {
+        kprintf(ERROR, "fat32_rmdir: Failed to write updated cluster\n");
+        kfree(buffer);
         fat32_close(dir);
+        fat32_close(parent);
+        kfree(path_copy);
         return false;
     }
-    
+
+    kfree(buffer);
     fat32_close(dir);
+    fat32_close(parent);
+    kfree(path_copy);
+
+    block_device_sync(dev);
     return true;
 }
+
 
 // Delete file
 bool fat32_unlink(struct block_device* dev, const char* path) {
