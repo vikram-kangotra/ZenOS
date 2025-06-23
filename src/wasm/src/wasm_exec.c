@@ -123,22 +123,18 @@ static bool stack_pop(wasm_exec_context_t* ctx, wasm_value_t* value) {
 // Push a block onto the control flow stack
 static bool block_stack_push(wasm_exec_context_t* ctx, wasm_block_t block) {
     if (!ctx || !ctx->block_stack) return false;
-    
     if (ctx->block_stack_size >= ctx->block_stack_capacity) {
-        // Grow block stack
         uint32_t new_capacity = ctx->block_stack_capacity * 2;
         wasm_block_t* new_stack = kmalloc(sizeof(wasm_block_t) * new_capacity);
         if (!new_stack) {
             kprintf(ERROR, "Failed to grow WebAssembly block stack\n");
             return false;
         }
-        
         memcpy(new_stack, ctx->block_stack, sizeof(wasm_block_t) * ctx->block_stack_size);
         kfree(ctx->block_stack);
         ctx->block_stack = new_stack;
         ctx->block_stack_capacity = new_capacity;
     }
-    
     ctx->block_stack[ctx->block_stack_size++] = block;
     return true;
 }
@@ -148,7 +144,6 @@ static bool block_stack_pop(wasm_exec_context_t* ctx, wasm_block_t* block) {
     if (!ctx || !ctx->block_stack || !block || ctx->block_stack_size == 0) {
         return false;
     }
-    
     *block = ctx->block_stack[--ctx->block_stack_size];
     return true;
 }
@@ -411,6 +406,42 @@ static bool execute_i32_gt_u(wasm_exec_context_t* ctx) {
     return true;
 }
 
+static bool execute_i32_and(wasm_exec_context_t* ctx) {
+    if (ctx->stack_size < 2) {
+        kprintf(ERROR, "Stack underflow in i32.and\n");
+        return false;
+    }
+    int32_t b = ctx->stack[ctx->stack_size - 1].i32;
+    int32_t a = ctx->stack[ctx->stack_size - 2].i32;
+    ctx->stack[ctx->stack_size - 2].i32 = a & b;
+    ctx->stack_size--;
+    return true;
+}
+
+static bool execute_i32_or(wasm_exec_context_t* ctx) {
+    if (ctx->stack_size < 2) {
+        kprintf(ERROR, "Stack underflow in i32.or\n");
+        return false;
+    }
+    int32_t b = ctx->stack[ctx->stack_size - 1].i32;
+    int32_t a = ctx->stack[ctx->stack_size - 2].i32;
+    ctx->stack[ctx->stack_size - 2].i32 = a | b;
+    ctx->stack_size--;
+    return true;
+}
+
+static bool execute_i32_xor(wasm_exec_context_t* ctx) {
+    if (ctx->stack_size < 2) {
+        kprintf(ERROR, "Stack underflow in i32.xor\n");
+        return false;
+    }
+    int32_t b = ctx->stack[ctx->stack_size - 1].i32;
+    int32_t a = ctx->stack[ctx->stack_size - 2].i32;
+    ctx->stack[ctx->stack_size - 2].i32 = a ^ b;
+    ctx->stack_size--;
+    return true;
+}
+
 // Integer arithmetic operations
 static bool execute_i32_add(wasm_exec_context_t* ctx) {
     if (ctx->stack_size < 2) {
@@ -419,7 +450,6 @@ static bool execute_i32_add(wasm_exec_context_t* ctx) {
     }
     int32_t b = ctx->stack[ctx->stack_size - 1].i32;
     int32_t a = ctx->stack[ctx->stack_size - 2].i32;
-    kprintf(DEBUG, "[WASM] i32.add: %d + %d = %d\n", a, b, a + b);
     ctx->stack[ctx->stack_size - 2].i32 = a + b;
     ctx->stack_size--;
     return true;
@@ -440,7 +470,6 @@ static bool execute_i32_mul(wasm_exec_context_t* ctx) {
     }
     int32_t b = ctx->stack[ctx->stack_size - 1].i32;
     int32_t a = ctx->stack[ctx->stack_size - 2].i32;
-    kprintf(DEBUG, "[WASM] i32.mul: %d * %d = %d\n", a, b, a * b);
     ctx->stack[ctx->stack_size - 2].i32 = a * b;
     ctx->stack_size--;
     return true;
@@ -645,43 +674,41 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
         }
         
         case WASM_OP_END: {
-            wasm_block_t block;
-            if (!block_stack_pop(ctx, &block)) {
-                // If no block to pop, this is the end of the function
-                ctx->pc = NULL;  // Signal end of function
+            if (ctx->block_stack_size == 0) {
+                ctx->pc = NULL;
                 return true;
             }
-            
-            // Set end_pc for the block
-            block.end_pc = ctx->pc;
-            
-            // Restore stack to block's initial size
+            ctx->block_stack[ctx->block_stack_size - 1].end_pc = ctx->pc;
+            wasm_block_t block;
+            if (!block_stack_pop(ctx, &block)) {
+                return false;
+            }
             ctx->stack_size = block.stack_size;
             return true;
         }
         
         case WASM_OP_BR: {
-            uint32_t depth;
-            if (!read_leb128_u32(ctx->pc, 0, NULL, &depth)) {
-                return false;
-            }
-            
+            uint32_t depth = 0;
+            uint32_t shift = 0;
+            uint8_t byte;
+            do {
+                byte = *ctx->pc++;
+                depth |= ((byte & 0x7F) << shift);
+                shift += 7;
+            } while (byte & 0x80);
+
             if (depth >= ctx->block_stack_size) {
                 kprintf(ERROR, "Invalid branch depth: %d\n", depth);
                 return false;
             }
-            
-            // Get target block
-            wasm_block_t target = ctx->block_stack[ctx->block_stack_size - 1 - depth];
-            
-            // Restore stack to target block's initial size
-            ctx->stack_size = target.stack_size;
-            
-            // Jump to start of target block if it's a loop, end if it's a block
-            if (target.is_loop) {
-                ctx->pc = target.start_pc;
+            wasm_block_t* target = &ctx->block_stack[ctx->block_stack_size - 1 - depth];
+            ctx->stack_size = target->stack_size;
+            if (target->is_loop) {
+                ctx->block_stack_size = ctx->block_stack_size - depth;
+                ctx->pc = target->start_pc;
             } else {
-                ctx->pc = target.end_pc;
+                ctx->pc = target->end_pc;
+                ctx->block_stack_size -= (depth + 1);
             }
             return true;
         }
@@ -1116,6 +1143,26 @@ bool wasm_execute_instruction(wasm_exec_context_t* ctx) {
                 return stack_push(ctx, result);
             }
             return true;
+        }
+        
+        case WASM_OP_I32_AND:
+            return execute_i32_and(ctx);
+        case WASM_OP_I32_XOR:
+            return execute_i32_xor(ctx);
+        case WASM_OP_I32_OR:
+            return execute_i32_or(ctx);
+        
+        case WASM_OP_SELECT: {
+            if (ctx->stack_size < 3) {
+                kprintf(ERROR, "Stack underflow in select\n");
+                return false;
+            }
+            wasm_value_t condition = ctx->stack[ctx->stack_size - 1];
+            wasm_value_t value2 = ctx->stack[ctx->stack_size - 2];
+            wasm_value_t value1 = ctx->stack[ctx->stack_size - 3];
+            ctx->stack_size -= 3;
+            wasm_value_t selected = condition.i32 ? value1 : value2;
+            return stack_push(ctx, selected);
         }
         
         default:

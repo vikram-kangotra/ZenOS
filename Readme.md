@@ -43,7 +43,7 @@ This will create a bootable ISO image in `dist/x86_64/kernel.iso`.
 
 ### Using QEMU (Recommended for quick testing)
 ```sh
-qemu-system-x86_64 -cdrom dist/x86_64/kernel.iso
+make run
 ```
 
 ### Using Bochs (Recommended for debugging)

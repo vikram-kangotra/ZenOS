@@ -63,7 +63,10 @@ typedef enum {
     WASM_OP_I32_DIV_S = 0x6D,
     WASM_OP_I32_DIV_U = 0x6E,
     WASM_OP_I32_REM_S = 0x6F,
-    WASM_OP_I32_REM_U = 0x70
+    WASM_OP_I32_REM_U = 0x70,
+    WASM_OP_I32_AND = 0x71,
+    WASM_OP_I32_XOR = 0x72,
+    WASM_OP_I32_OR = 0x73,
 } wasm_opcode_t;
 
 // Control flow block

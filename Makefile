@@ -90,6 +90,25 @@ CPP_SRC := $(shell find $(CPP_DIR) -name '*.cpp')
 WASM_BINS := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_PROGRAMS_DIR)/%.wasm)
 WASM_WAT_FILES := $(CPP_SRC:$(CPP_DIR)/%.cpp=$(WASM_WAT_DIR)/%.wat)
 
+# Rust WASM build automation
+RUST_DIR := programs/rust
+RUST_PROJECTS := $(shell find $(RUST_DIR) -maxdepth 1 -mindepth 1 -type d)
+RUST_WASM_BINS := $(foreach proj,$(RUST_PROJECTS),$(WASM_PROGRAMS_DIR)/$(notdir $(proj)).wasm)
+
+# Rule to build each Rust WASM binary
+WASM_OPT := wasm-opt
+
+$(WASM_PROGRAMS_DIR)/%.wasm: $(RUST_DIR)/%/src/lib.rs
+	cd $(RUST_DIR)/$* && cargo build --release --target wasm32-unknown-unknown
+	mkdir -p $(WASM_PROGRAMS_DIR)
+	cp $(RUST_DIR)/$*/target/wasm32-unknown-unknown/release/$*.wasm $(WASM_PROGRAMS_DIR)/
+	$(WASM_OPT) -Oz -o $(WASM_PROGRAMS_DIR)/$*.wasm $(WASM_PROGRAMS_DIR)/$*.wasm
+	mkdir -p $(WASM_WAT_DIR)
+	$(WASM2WAT) $(WASM_PROGRAMS_DIR)/$*.wasm -o $(WASM_WAT_DIR)/$*.wat
+
+# Add Rust WASM binaries to WASM_BINS
+WASM_BINS := $(WASM_BINS) $(RUST_WASM_BINS)
+
 # Main Targets
 # ----------
 .PHONY: all
@@ -100,9 +119,6 @@ kernel: $(TARGET)
 
 .PHONY: iso
 iso: $(ISO)
-
-.PHONY: disk
-disk: $(DISK_IMG)
 
 # Prerequisites Check
 # ----------------
@@ -139,7 +155,7 @@ $(ISO): $(TARGET) $(ISO_DIR)/boot/grub/grub.cfg
 
 # Disk Image Creation
 # ----------------
-$(DISK_IMG): $(WASM_BINS) init-submodules wat
+$(DISK_IMG): $(WASM_BINS)
 	@mkdir -p $(@D)
 	@echo "Creating disk image..."
 	dd if=/dev/zero of=$@ bs=1M count=512

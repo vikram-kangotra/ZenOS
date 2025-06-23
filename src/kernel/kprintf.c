@@ -10,6 +10,8 @@ void kputchar(enum LogLevel level, char ch) {
 #endif
         vga_write_char(ch);
 #ifndef DEBUG_MODE
+    }
+#endif
     serial_write_char(ch);
 }
 
