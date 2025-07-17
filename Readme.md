@@ -73,3 +73,8 @@ Run the built-in WebAssembly tests using:
 ```
 > wasmtest
 ```
+
+### Developers
+- Vikram Kangotra (vikramkangotra8055@gmail.com) 9419542283
+- Disha baghel (bagheldisha708@gmail.com) 9773539142
+- Akshita Singh (akshitasingh202@gmail.com) 9334962740
